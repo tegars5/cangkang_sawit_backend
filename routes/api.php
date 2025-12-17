@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\AdminOrderController;
 use App\Http\Controllers\Api\DriverOrderController;
+use App\Http\Controllers\Api\WaybillController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -27,7 +28,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/orders/{order}/pay', [PaymentController::class, 'pay']);
 
+    // Admin Waybill Management
+    Route::post('/admin/orders/{order}/waybill', [AdminOrderController::class, 'createWaybill']);
     Route::post('/admin/orders/{order}/assign-driver', [AdminOrderController::class, 'assignDriver']);
+
+    // Waybill Viewing (Admin or Order Owner)
+    Route::get('/orders/{order}/waybill', [OrderController::class, 'showWaybill']);
+    
+    // Optional: PDF Download (uncomment after installing dompdf)
+    Route::get('/orders/{order}/waybill/pdf', [WaybillController::class, 'downloadWaybillPdf']);
 
     Route::get('/driver/orders', [DriverOrderController::class, 'index']);
     Route::post('/driver/delivery-orders/{deliveryOrder}/status', [DriverOrderController::class, 'updateStatus']);

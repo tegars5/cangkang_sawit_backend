@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Waybill;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -134,6 +135,56 @@ class OrderController
                 'lng' => $lastLocation->lng,
                 'recorded_at' => $lastLocation->recorded_at,
             ] : null,
+        ]);
+    }
+
+    public function showWaybill(Order $order)
+    {
+        $user = auth()->user();
+
+        if ($order->user_id !== $user->id && $user->role !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized. You do not have access to this order.',
+            ], 403);
+        }
+
+        $waybill = Waybill::where('order_id', $order->id)
+            ->with(['order.orderItems.product', 'order.user', 'driver'])
+            ->first();
+
+        if (!$waybill) {
+            return response()->json([
+                'message' => 'Waybill not found.',
+            ], 404);
+        }
+
+        return response()->json([
+            'waybill' => $waybill,
+            'order' => [
+                'id' => $order->id,
+                'order_code' => $order->order_code,
+                'status' => $order->status,
+                'total_amount' => $order->total_amount,
+                'destination_address' => $order->destination_address,
+            ],
+            'items' => $waybill->order->orderItems->map(function ($item) {
+                return [
+                    'product_name' => $item->product->name,
+                    'quantity' => $item->quantity,
+                    'price' => $item->price,
+                    'subtotal' => $item->subtotal,
+                ];
+            }),
+            'driver' => $waybill->driver ? [
+                'id' => $waybill->driver->id,
+                'name' => $waybill->driver->name,
+                'email' => $waybill->driver->email,
+            ] : null,
+            'mitra' => [
+                'id' => $waybill->order->user->id,
+                'name' => $waybill->order->user->name,
+                'email' => $waybill->order->user->email,
+            ],
         ]);
     }
 }
