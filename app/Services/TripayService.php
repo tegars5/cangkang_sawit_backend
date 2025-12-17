@@ -46,9 +46,11 @@ class TripayService
             'signature' => $signature,
         ];
 
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $this->apiKey,
-        ])->post($this->apiUrl . '/transaction/create', $payload);
+        $response = Http::withoutVerifying()
+            ->withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+            ])
+            ->post($this->apiUrl . '/transaction/create', $payload);
 
         $data = $response->json();
 

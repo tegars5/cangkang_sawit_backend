@@ -93,4 +93,47 @@ class OrderController
             'order' => $order,
         ]);
     }
+
+    public function tracking(Order $order)
+    {
+        $user = auth()->user();
+
+        if ($order->user_id !== $user->id && $user->role !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized. You do not have access to this order.',
+            ], 403);
+        }
+
+        $deliveryOrder = $order->deliveryOrder()->with('driver')->first();
+
+        if (!$deliveryOrder) {
+            return response()->json([
+                'message' => 'No delivery assigned yet for this order.',
+            ], 404);
+        }
+
+        $lastLocation = $deliveryOrder->deliveryTracks()
+            ->orderBy('recorded_at', 'desc')
+            ->first();
+
+        return response()->json([
+            'order' => [
+                'id' => $order->id,
+                'order_code' => $order->order_code,
+                'status' => $order->status,
+                'destination_address' => $order->destination_address,
+            ],
+            'driver' => $deliveryOrder->driver ? [
+                'id' => $deliveryOrder->driver->id,
+                'name' => $deliveryOrder->driver->name,
+                'email' => $deliveryOrder->driver->email,
+            ] : null,
+            'delivery_status' => $deliveryOrder->status,
+            'last_location' => $lastLocation ? [
+                'lat' => $lastLocation->lat,
+                'lng' => $lastLocation->lng,
+                'recorded_at' => $lastLocation->recorded_at,
+            ] : null,
+        ]);
+    }
 }

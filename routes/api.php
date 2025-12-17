@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\AdminOrderController;
+use App\Http\Controllers\Api\DriverOrderController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -21,6 +23,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders/{order}', [OrderController::class, 'show']);
     Route::post('/orders/{order}/cancel', [OrderController::class, 'cancel']);
+    Route::get('/orders/{order}/tracking', [OrderController::class, 'tracking']);
 
     Route::post('/orders/{order}/pay', [PaymentController::class, 'pay']);
+
+    Route::post('/admin/orders/{order}/assign-driver', [AdminOrderController::class, 'assignDriver']);
+
+    Route::get('/driver/orders', [DriverOrderController::class, 'index']);
+    Route::post('/driver/delivery-orders/{deliveryOrder}/status', [DriverOrderController::class, 'updateStatus']);
+    Route::post('/driver/delivery-orders/{deliveryOrder}/track', [DriverOrderController::class, 'track']);
 });
