@@ -14,12 +14,16 @@ class Order extends Model
         'destination_address',
         'destination_lat',
         'destination_lng',
+        'distance_km',
+        'estimated_minutes',
     ];
 
     protected $casts = [
         'total_amount' => 'decimal:2',
         'destination_lat' => 'decimal:8',
         'destination_lng' => 'decimal:8',
+        'distance_km' => 'decimal:2',
+        'estimated_minutes' => 'integer',
     ];
 
     public function user()

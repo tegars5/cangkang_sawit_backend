@@ -34,6 +34,7 @@ class TripayService
             'amount' => $amount,
             'customer_name' => $order->user->name,
             'customer_email' => $order->user->email,
+            'customer_phone' => $order->user->phone,
             'order_items' => $order->orderItems->map(function ($item) {
                 return [
                     'name' => $item->product->name,

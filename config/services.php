@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'google_maps' => [
+        'key' => env('GOOGLE_MAPS_API_KEY'),
+    ],
+
+    'warehouse' => [
+        'lat' => env('WAREHOUSE_LAT', -6.200000),
+        'lng' => env('WAREHOUSE_LNG', 106.800000),
+    ],
+
 ];

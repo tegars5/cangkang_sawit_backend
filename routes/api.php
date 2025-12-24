@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\AdminOrderController;
 use App\Http\Controllers\Api\DriverOrderController;
 use App\Http\Controllers\Api\WaybillController;
+use App\Http\Controllers\Api\DistanceController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -37,6 +38,10 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Optional: PDF Download (uncomment after installing dompdf)
     Route::get('/orders/{order}/waybill/pdf', [WaybillController::class, 'downloadWaybillPdf']);
+
+    // Distance Calculation
+    Route::get('/orders/{order}/distance', [DistanceController::class, 'orderDistance']);
+    Route::get('/orders/{order}/driver-distance', [DistanceController::class, 'driverDistance']);
 
     Route::get('/driver/orders', [DriverOrderController::class, 'index']);
     Route::post('/driver/delivery-orders/{deliveryOrder}/status', [DriverOrderController::class, 'updateStatus']);

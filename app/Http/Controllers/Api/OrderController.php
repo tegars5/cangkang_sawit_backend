@@ -99,43 +99,62 @@ class OrderController
     {
         $user = auth()->user();
 
+        // Authorization check
         if ($order->user_id !== $user->id && $user->role !== 'admin') {
             return response()->json([
                 'message' => 'Unauthorized. You do not have access to this order.',
             ], 403);
         }
 
+        // Load delivery order with driver relationship
         $deliveryOrder = $order->deliveryOrder()->with('driver')->first();
 
-        if (!$deliveryOrder) {
-            return response()->json([
-                'message' => 'No delivery assigned yet for this order.',
-            ], 404);
+        // Initialize response structure
+        $response = [
+            'driver_location' => null,
+            'order_status' => $this->mapOrderStatus($order->status),
+            'distance_km' => $order->distance_km ? (float) $order->distance_km : null,
+            'estimated_minutes' => $order->estimated_minutes,
+            'driver' => null,
+        ];
+
+        // If driver is assigned, get driver info and location
+        if ($deliveryOrder && $deliveryOrder->driver) {
+            // Get latest driver location from delivery tracks
+            $lastLocation = $deliveryOrder->deliveryTracks()
+                ->orderBy('recorded_at', 'desc')
+                ->first();
+
+            if ($lastLocation) {
+                $response['driver_location'] = [
+                    'latitude' => (float) $lastLocation->lat,
+                    'longitude' => (float) $lastLocation->lng,
+                ];
+            }
+
+            $response['driver'] = [
+                'name' => $deliveryOrder->driver->name,
+                'phone' => $deliveryOrder->driver->phone ?? null,
+            ];
         }
 
-        $lastLocation = $deliveryOrder->deliveryTracks()
-            ->orderBy('recorded_at', 'desc')
-            ->first();
+        return response()->json($response);
+    }
 
-        return response()->json([
-            'order' => [
-                'id' => $order->id,
-                'order_code' => $order->order_code,
-                'status' => $order->status,
-                'destination_address' => $order->destination_address,
-            ],
-            'driver' => $deliveryOrder->driver ? [
-                'id' => $deliveryOrder->driver->id,
-                'name' => $deliveryOrder->driver->name,
-                'email' => $deliveryOrder->driver->email,
-            ] : null,
-            'delivery_status' => $deliveryOrder->status,
-            'last_location' => $lastLocation ? [
-                'lat' => $lastLocation->lat,
-                'lng' => $lastLocation->lng,
-                'recorded_at' => $lastLocation->recorded_at,
-            ] : null,
-        ]);
+    /**
+     * Map order status to tracking-friendly status
+     */
+    private function mapOrderStatus($status)
+    {
+        $statusMap = [
+            'pending' => 'pending',
+            'confirmed' => 'confirmed',
+            'on_delivery' => 'on_the_way',
+            'completed' => 'delivered',
+            'cancelled' => 'cancelled',
+        ];
+
+        return $statusMap[$status] ?? $status;
     }
 
     public function showWaybill(Order $order)
