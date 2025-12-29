@@ -10,6 +10,32 @@ use Illuminate\Http\Request;
 
 class AdminOrderController
 {
+    public function approve(Order $order, Request $request)
+{
+    // Hanya admin
+    if (auth()->user()->role !== 'admin') {
+        return response()->json([
+            'message' => 'Unauthorized. Admin access required.',
+        ], 403);
+    }
+
+    // Hanya boleh approve order dengan status pending
+    if ($order->status !== 'pending') {
+        return response()->json([
+            'message' => 'Only pending orders can be approved.',
+        ], 400);
+    }
+
+    // Ubah status ke confirmed (atau nama status yang kamu pakai)
+    $order->update([
+        'status' => 'confirmed',
+    ]);
+
+    return response()->json([
+        'message' => 'Order approved successfully',
+        'order'   => $order->load(['orderItems.product', 'deliveryOrder.driver', 'user']),
+    ]);
+}
     public function assignDriver(Order $order, Request $request)
     {
         if (auth()->user()->role !== 'admin') {

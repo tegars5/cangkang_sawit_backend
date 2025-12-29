@@ -58,6 +58,14 @@ class ProductSeeder extends Seeder
                 'price' => 800000,
                 'stock' => 6000,
             ],
+            [
+                'name' => 'Cangkang Sawit Grade B',
+                'description' => 'Cangkang sawit kualitas standar dengan kadar air sedang. Cocok untuk berbagai keperluan industri dan pembangkit listrik.',
+                'price' => 650000,
+                'stock' => 8000,
+                'category' => 'Grade B',
+                'images' => 'products/grade_b.jpg',
+            ],
         ];
 
         foreach ($products as $product) {

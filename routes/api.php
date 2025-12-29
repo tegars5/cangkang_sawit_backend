@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\AdminOrderController;
+use App\Http\Controllers\Api\AdminDashboardController;
 use App\Http\Controllers\Api\DriverOrderController;
 use App\Http\Controllers\Api\WaybillController;
 use App\Http\Controllers\Api\DistanceController;
@@ -28,6 +29,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders/{order}/tracking', [OrderController::class, 'tracking']);
 
     Route::post('/orders/{order}/pay', [PaymentController::class, 'pay']);
+
+    // Admin Dashboard Summary
+    Route::get('/admin/dashboard-summary', [AdminDashboardController::class, 'summary']);
+    Route::post('/admin/orders/{order}/approve', [AdminOrderController::class, 'approve']);
 
     // Admin Waybill Management
     Route::post('/admin/orders/{order}/waybill', [AdminOrderController::class, 'createWaybill']);
