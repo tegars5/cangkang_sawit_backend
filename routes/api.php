@@ -13,42 +13,56 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-
 Route::post('/payment/tripay/callback', [PaymentController::class, 'callback']);
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/me', [AuthController::class, 'me']);
-
-    Route::apiResource('products', ProductController::class);
-
-    Route::get('/orders', [OrderController::class, 'index']);
-    Route::post('/orders', [OrderController::class, 'store']);
-    Route::get('/orders/{order}', [OrderController::class, 'show']);
-    Route::post('/orders/{order}/cancel', [OrderController::class, 'cancel']);
-    Route::get('/orders/{order}/tracking', [OrderController::class, 'tracking']);
-
-    Route::post('/orders/{order}/pay', [PaymentController::class, 'pay']);
-
-    // Admin Dashboard Summary
-    Route::get('/admin/dashboard-summary', [AdminDashboardController::class, 'summary']);
-    Route::post('/admin/orders/{order}/approve', [AdminOrderController::class, 'approve']);
-
-    // Admin Waybill Management
-    Route::post('/admin/orders/{order}/waybill', [AdminOrderController::class, 'createWaybill']);
-    Route::post('/admin/orders/{order}/assign-driver', [AdminOrderController::class, 'assignDriver']);
-
-    // Waybill Viewing (Admin or Order Owner)
-    Route::get('/orders/{order}/waybill', [OrderController::class, 'showWaybill']);
     
-    // Optional: PDF Download (uncomment after installing dompdf)
-    Route::get('/orders/{order}/waybill/pdf', [WaybillController::class, 'downloadWaybillPdf']);
+    Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/logout', [AuthController::class, 'logout']);
 
-    // Distance Calculation
-    Route::get('/orders/{order}/distance', [DistanceController::class, 'orderDistance']);
-    Route::get('/orders/{order}/driver-distance', [DistanceController::class, 'driverDistance']);
+    /* --- PRODUCT ROUTES --- */
+    // Publik (Bisa diakses siapa saja yang login)
+    Route::get('/products', [ProductController::class, 'index']);
+    Route::get('/products/{product}', [ProductController::class, 'show']);
+    
+    // Khusus Admin
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/products', [ProductController::class, 'store']);
+        Route::post('/products/{product}', [ProductController::class, 'update']);
+        Route::delete('/products/{product}', [ProductController::class, 'destroy']);
+    });
 
-    Route::get('/driver/orders', [DriverOrderController::class, 'index']);
-    Route::post('/driver/delivery-orders/{deliveryOrder}/status', [DriverOrderController::class, 'updateStatus']);
-    Route::post('/driver/delivery-orders/{deliveryOrder}/track', [DriverOrderController::class, 'track']);
+    /* --- ORDER ROUTES --- */
+    Route::prefix('orders')->group(function () {
+        Route::get('/', [OrderController::class, 'index']);
+        Route::post('/', [OrderController::class, 'store']);
+        Route::get('/{order}', [OrderController::class, 'show']);
+        Route::post('/{order}/cancel', [OrderController::class, 'cancel']);
+        Route::get('/{order}/tracking', [OrderController::class, 'tracking']);
+        Route::post('/{order}/pay', [PaymentController::class, 'pay']);
+        
+        // Foto Order
+        Route::post('/{order}/upload-photo', [OrderController::class, 'uploadPhoto']);
+        Route::get('/{order}/photos', [OrderController::class, 'photos']);
+        
+        Route::get('/{order}/waybill', [OrderController::class, 'showWaybill']);
+        Route::get('/{order}/waybill/pdf', [WaybillController::class, 'downloadWaybillPdf']);
+        Route::get('/{order}/distance', [DistanceController::class, 'orderDistance']);
+        Route::get('/{order}/driver-distance', [DistanceController::class, 'driverDistance']);
+    });
+
+    /* --- ADMIN ROUTES --- */
+    Route::middleware('role:admin')->prefix('admin')->group(function () {
+        Route::get('/dashboard-summary', [AdminDashboardController::class, 'summary']);
+        Route::post('/orders/{order}/approve', [AdminOrderController::class, 'approve']);
+        Route::post('/orders/{order}/waybill', [AdminOrderController::class, 'createWaybill']);
+        Route::post('/orders/{order}/assign-driver', [AdminOrderController::class, 'assignDriver']);
+    });
+
+    /* --- DRIVER ROUTES --- */
+    Route::middleware('role:driver')->prefix('driver')->group(function () {
+        Route::get('/orders', [DriverOrderController::class, 'index']);
+        Route::post('/delivery-orders/{deliveryOrder}/status', [DriverOrderController::class, 'updateStatus']);
+        Route::post('/delivery-orders/{deliveryOrder}/track', [DriverOrderController::class, 'track']);
+    });
 });

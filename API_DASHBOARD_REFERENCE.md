@@ -67,4 +67,52 @@ Authorization: Bearer {token}
 ```
 Admin: admin@gmail.com / password123
 Mitra: mitra@gmail.com / password123
+Driver 1: driver1@csawit.com / password123
 ```
+
+## Sample Data
+
+### Running the Seeder
+
+Untuk mendapatkan data demo yang lengkap dengan tracking, payment, dan waybill:
+
+```bash
+php artisan db:seed --class=ComprehensiveDataSeeder
+```
+
+### What's Included
+
+- **8 Orders** dengan berbagai status untuk testing semua fitur
+- **Realistic GPS Tracking**: 3-5 koordinat per delivery route (Jakarta-Bandung, Semarang-Surabaya, dll)
+- **Payment Records**: Berbagai status (paid, unpaid, failed, expired)
+- **Waybills**: Surat jalan untuk deliveries yang aktif
+- **3 Drivers**: Assigned ke berbagai delivery orders
+
+### Inventory Calculation
+
+Field `inventory_tons` menggunakan `SUM(stock)` dari tabel `products`. Stock values merepresentasikan unit (tons) dengan nilai realistis:
+- Grade A: 50 tons
+- Grade B: 80 tons
+- Grade C: 120 tons
+- Total: ~600 tons
+
+## Order Status vs Delivery Status
+
+### Relationship Table
+
+| Order Status | Delivery Status | Tracking Available | Description |
+|--------------|-----------------|-------------------|-------------|
+| `pending` | - | ❌ | Menunggu pembayaran |
+| `confirmed` | - | ❌ | Paid, menunggu driver assignment |
+| `on_delivery` | `assigned` | ✅ | Driver assigned, belum berangkat |
+| `on_delivery` | `on_the_way` | ✅ | Driver dalam perjalanan (GPS active) |
+| `on_delivery` | `arrived` | ✅ | Driver sudah sampai lokasi |
+| `completed` | `completed` | ✅ | Pengiriman selesai |
+| `cancelled` | `cancelled` / - | ❌ | Order dibatalkan |
+
+### Key Points
+
+- **Delivery Order dibuat** ketika admin assign driver → `orders.status` berubah ke `on_delivery`
+- **GPS Tracking** hanya tersedia ketika `delivery_orders` record exists
+- **Status transitions** harus mengikuti flow: pending → confirmed → on_delivery → completed
+- **Waybill** dibuat bersamaan dengan delivery order assignment

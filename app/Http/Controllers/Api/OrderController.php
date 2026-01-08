@@ -2,14 +2,21 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Waybill;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
-class OrderController
+class OrderController extends Controller
 {
+    /**
+     * List semua order milik user yang login
+     */
     public function index(Request $request)
     {
         $orders = Order::where('user_id', $request->user()->id)
@@ -20,6 +27,9 @@ class OrderController
         return response()->json($orders);
     }
 
+    /**
+     * Simpan order baru
+     */
     public function store(Request $request)
     {
         $request->validate([
@@ -44,7 +54,7 @@ class OrderController
             $totalAmount = 0;
 
             foreach ($request->items as $item) {
-                $product = \App\Models\Product::findOrFail($item['product_id']);
+                $product = Product::findOrFail($item['product_id']);
                 $subtotal = $product->price * $item['quantity'];
 
                 OrderItem::create([
@@ -64,6 +74,9 @@ class OrderController
         });
     }
 
+    /**
+     * Detail satu order
+     */
     public function show(Order $order)
     {
         if ($order->user_id !== auth()->id()) {
@@ -75,6 +88,9 @@ class OrderController
         );
     }
 
+    /**
+     * Batalkan order
+     */
     public function cancel(Order $order)
     {
         if ($order->user_id !== auth()->id()) {
@@ -95,21 +111,19 @@ class OrderController
         ]);
     }
 
+    /**
+     * Tracking lokasi driver
+     */
     public function tracking(Order $order)
     {
         $user = auth()->user();
 
-        // Authorization check
         if ($order->user_id !== $user->id && $user->role !== 'admin') {
-            return response()->json([
-                'message' => 'Unauthorized. You do not have access to this order.',
-            ], 403);
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        // Load delivery order with driver relationship
         $deliveryOrder = $order->deliveryOrder()->with('driver')->first();
 
-        // Initialize response structure
         $response = [
             'driver_location' => null,
             'order_status' => $this->mapOrderStatus($order->status),
@@ -118,9 +132,7 @@ class OrderController
             'driver' => null,
         ];
 
-        // If driver is assigned, get driver info and location
         if ($deliveryOrder && $deliveryOrder->driver) {
-            // Get latest driver location from delivery tracks
             $lastLocation = $deliveryOrder->deliveryTracks()
                 ->orderBy('recorded_at', 'desc')
                 ->first();
@@ -142,29 +154,14 @@ class OrderController
     }
 
     /**
-     * Map order status to tracking-friendly status
+     * Tampilkan Surat Jalan (Waybill)
      */
-    private function mapOrderStatus($status)
-    {
-        $statusMap = [
-            'pending' => 'pending',
-            'confirmed' => 'confirmed',
-            'on_delivery' => 'on_the_way',
-            'completed' => 'delivered',
-            'cancelled' => 'cancelled',
-        ];
-
-        return $statusMap[$status] ?? $status;
-    }
-
     public function showWaybill(Order $order)
     {
         $user = auth()->user();
 
         if ($order->user_id !== $user->id && $user->role !== 'admin') {
-            return response()->json([
-                'message' => 'Unauthorized. You do not have access to this order.',
-            ], 403);
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         $waybill = Waybill::where('order_id', $order->id)
@@ -172,9 +169,7 @@ class OrderController
             ->first();
 
         if (!$waybill) {
-            return response()->json([
-                'message' => 'Waybill not found.',
-            ], 404);
+            return response()->json(['message' => 'Waybill not found.'], 404);
         }
 
         return response()->json([
@@ -205,5 +200,79 @@ class OrderController
                 'email' => $waybill->order->user->email,
             ],
         ]);
+    }
+
+    /**
+     * Upload foto terkait order (BARU)
+     */
+    public function uploadPhoto(Request $request, Order $order)
+    {
+        $user = $request->user();
+
+        if ($order->user_id !== $user->id && $user->role !== 'admin') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'photo' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $fileName = 'order_' . $order->id . '_' . time() . '_' . $request->file('photo')->getClientOriginalName();
+        $path = $request->file('photo')->storeAs('order_photos', $fileName, 'public');
+        $url = Storage::disk('public')->url($path);
+
+        return response()->json([
+            'message' => 'Photo uploaded successfully',
+            'order_id' => $order->id,
+            'url' => $url,
+            'path' => $path
+        ], 201);
+    }
+
+    /**
+     * List semua foto order (BARU)
+     */
+    public function photos(Order $order)
+    {
+        $user = auth()->user();
+
+        if ($order->user_id !== $user->id && $user->role !== 'admin') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $directory = 'order_photos';
+        $files = Storage::disk('public')->files($directory);
+
+        $orderPhotos = collect($files)->filter(function ($file) use ($order) {
+            return str_contains($file, 'order_' . $order->id . '_');
+        })->map(function ($file) {
+            return [
+                'filename' => basename($file),
+                'url' => Storage::disk('public')->url($file),
+                'size' => Storage::disk('public')->size($file),
+            ];
+        })->values(); // Reset keys array agar rapi di JSON
+
+        return response()->json([
+            'order_id' => $order->id,
+            'photos' => $orderPhotos,
+        ]);
+    }
+
+    /**
+     * Helper status mapping
+     */
+    private function mapOrderStatus($status)
+    {
+        $statusMap = [
+            'pending' => 'pending',
+            'confirmed' => 'confirmed',
+            'on_delivery' => 'on_the_way',
+            'completed' => 'delivered',
+            'cancelled' => 'cancelled',
+        ];
+
+        return $statusMap[$status] ?? $status;
     }
 }

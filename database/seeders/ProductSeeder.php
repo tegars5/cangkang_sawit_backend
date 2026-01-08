@@ -14,56 +14,56 @@ class ProductSeeder extends Seeder
                 'name' => 'Cangkang Sawit Grade A',
                 'description' => 'Cangkang sawit kualitas premium dengan kadar air rendah, cocok untuk bahan bakar boiler industri. Ukuran seragam dan bebas dari kontaminan.',
                 'price' => 850000,
-                'stock' => 5000,
+                'stock' => 50, // 50 tons
             ],
             [
                 'name' => 'Cangkang Sawit Grade B',
                 'description' => 'Cangkang sawit kualitas standar dengan kadar air sedang. Cocok untuk berbagai keperluan industri dan pembangkit listrik.',
                 'price' => 650000,
-                'stock' => 8000,
+                'stock' => 80, // 80 tons
             ],
             [
                 'name' => 'Cangkang Sawit Grade C',
                 'description' => 'Cangkang sawit kualitas ekonomis, cocok untuk bahan bakar alternatif dan keperluan non-industri.',
                 'price' => 450000,
-                'stock' => 10000,
+                'stock' => 120, // 120 tons
             ],
             [
                 'name' => 'Cangkang Sawit Halus',
                 'description' => 'Cangkang sawit yang telah dihancurkan menjadi ukuran halus. Cocok untuk campuran pupuk organik dan media tanam.',
                 'price' => 350000,
-                'stock' => 3000,
+                'stock' => 30, // 30 tons
             ],
             [
                 'name' => 'Cangkang Sawit Curah',
                 'description' => 'Cangkang sawit dalam jumlah besar (curah) untuk kebutuhan industri skala besar. Harga per ton.',
                 'price' => 750000,
-                'stock' => 15000,
+                'stock' => 150, // 150 tons
             ],
             [
                 'name' => 'Briket Cangkang Sawit',
                 'description' => 'Briket yang terbuat dari cangkang sawit terkompresi. Efisien untuk bahan bakar dengan nilai kalori tinggi.',
                 'price' => 1200000,
-                'stock' => 2000,
+                'stock' => 25, // 25 tons
             ],
             [
                 'name' => 'Arang Cangkang Sawit',
                 'description' => 'Arang berkualitas tinggi dari cangkang sawit. Cocok untuk industri metalurgi dan pemurnian.',
                 'price' => 950000,
-                'stock' => 4000,
+                'stock' => 40, // 40 tons
             ],
             [
                 'name' => 'Cangkang Sawit Kering',
                 'description' => 'Cangkang sawit yang telah dikeringkan dengan kadar air minimal. Siap pakai untuk pembakaran langsung.',
                 'price' => 800000,
-                'stock' => 6000,
+                'stock' => 60, // 60 tons
             ],
             [
-                'name' => 'Cangkang Sawit Grade B',
-                'description' => 'Cangkang sawit kualitas standar dengan kadar air sedang. Cocok untuk berbagai keperluan industri dan pembangkit listrik.',
+                'name' => 'Cangkang Sawit Premium',
+                'description' => 'Cangkang sawit kualitas terbaik dengan kadar air sangat rendah. Cocok untuk berbagai keperluan industri dan pembangkit listrik.',
                 'price' => 650000,
-                'stock' => 8000,
-                'category' => 'Grade B',
+                'stock' => 45, // 45 tons
+                'category' => 'Premium',
                 'images' => 'products/grade_b.jpg',
             ],
         ];
