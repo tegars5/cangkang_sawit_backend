@@ -16,6 +16,7 @@ class Order extends Model
         'destination_lng',
         'distance_km',
         'estimated_minutes',
+        'cancelled_at',
     ];
 
     protected $casts = [
@@ -24,6 +25,7 @@ class Order extends Model
         'destination_lng' => 'decimal:8',
         'distance_km' => 'decimal:2',
         'estimated_minutes' => 'integer',
+        'cancelled_at' => 'datetime',
     ];
 
     public function user()

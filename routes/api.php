@@ -19,10 +19,23 @@ Route::middleware('auth:sanctum')->group(function () {
     
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
+    
+    /* --- PROFILE ROUTES --- */
+    Route::prefix('profile')->group(function () {
+        Route::get('/', [App\Http\Controllers\Api\ProfileController::class, 'show']);
+        Route::put('/', [App\Http\Controllers\Api\ProfileController::class, 'update']);
+        Route::put('/password', [App\Http\Controllers\Api\ProfileController::class, 'changePassword']);
+        Route::post('/photo', [App\Http\Controllers\Api\ProfileController::class, 'uploadPhoto']);
+    });
+    
+    /* --- FCM TOKEN ROUTE --- */
+    Route::post('/fcm-token', [App\Http\Controllers\Api\UserController::class, 'updateFcmToken']);
 
     /* --- PRODUCT ROUTES --- */
     // Publik (Bisa diakses siapa saja yang login)
     Route::get('/products', [ProductController::class, 'index']);
+    Route::get('/products/search', [ProductController::class, 'search']);
+    Route::get('/products/categories', [ProductController::class, 'getCategories']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
     
     // Khusus Admin
@@ -54,9 +67,14 @@ Route::middleware('auth:sanctum')->group(function () {
     /* --- ADMIN ROUTES --- */
     Route::middleware('role:admin')->prefix('admin')->group(function () {
         Route::get('/dashboard-summary', [AdminDashboardController::class, 'summary']);
+        Route::get('/orders', [AdminOrderController::class, 'index']);
         Route::post('/orders/{order}/approve', [AdminOrderController::class, 'approve']);
         Route::post('/orders/{order}/waybill', [AdminOrderController::class, 'createWaybill']);
         Route::post('/orders/{order}/assign-driver', [AdminOrderController::class, 'assignDriver']);
+        
+        // Driver management
+        Route::get('/drivers', [App\Http\Controllers\Api\AdminDriverController::class, 'index']);
+        Route::get('/drivers/available', [App\Http\Controllers\Api\AdminDriverController::class, 'available']);
     });
 
     /* --- DRIVER ROUTES --- */
@@ -64,5 +82,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/orders', [DriverOrderController::class, 'index']);
         Route::post('/delivery-orders/{deliveryOrder}/status', [DriverOrderController::class, 'updateStatus']);
         Route::post('/delivery-orders/{deliveryOrder}/track', [DriverOrderController::class, 'track']);
+        Route::post('/availability', [DriverOrderController::class, 'updateAvailability']);
     });
 });

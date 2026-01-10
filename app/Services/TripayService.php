@@ -86,4 +86,69 @@ class TripayService
         $signature = hash_hmac('sha256', $this->merchantCode . $merchantRef . $amount, $this->privateKey);
         return $signature === $callbackSignature;
     }
+    
+    /**
+     * Request refund for a payment
+     */
+    public function requestRefund(Payment $payment)
+    {
+        try {
+            // Check if payment is eligible for refund
+            if ($payment->status !== 'paid') {
+                return [
+                    'success' => false,
+                    'message' => 'Payment is not in paid status'
+                ];
+            }
+            
+            // Tripay refund API endpoint
+            $endpoint = $this->apiUrl . '/transaction/refund';
+            
+            $payload = [
+                'reference' => $payment->reference,
+                'reason' => 'Order cancelled by customer'
+            ];
+            
+            $signature = hash_hmac('sha256', json_encode($payload), $this->privateKey);
+            
+            $response = Http::withoutVerifying()
+                ->withHeaders([
+                    'Authorization' => 'Bearer ' . $this->apiKey,
+                    'X-Signature' => $signature
+                ])
+                ->post($endpoint, $payload);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                \Log::info('Tripay refund successful', [
+                    'payment_id' => $payment->id,
+                    'reference' => $payment->reference
+                ]);
+                
+                return [
+                    'success' => true,
+                    'data' => $data
+                ];
+            }
+            
+            \Log::error('Tripay refund failed', [
+                'payment_id' => $payment->id,
+                'response' => $response->body()
+            ]);
+            
+            return [
+                'success' => false,
+                'message' => 'Refund request failed'
+            ];
+            
+        } catch (\Exception $e) {
+            \Log::error('Tripay refund exception: ' . $e->getMessage());
+            
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
 }

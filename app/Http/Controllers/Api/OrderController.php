@@ -14,15 +14,30 @@ use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
-    /**
-     * List semua order milik user yang login
-     */
     public function index(Request $request)
     {
-        $orders = Order::where('user_id', $request->user()->id)
-            ->with(['orderItems.product', 'deliveryOrder', 'payment'])
-            ->latest()
-            ->get();
+        $perPage = $request->input('per_page', 15);
+        $status = $request->input('status');
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+        
+        $query = Order::where('user_id', $request->user()->id)
+            ->with(['orderItems.product', 'deliveryOrder', 'payment']);
+        
+        // Apply filters
+        if ($status) {
+            $query->where('status', $status);
+        }
+        
+        if ($dateFrom) {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+        
+        if ($dateTo) {
+            $query->whereDate('created_at', '<=', $dateTo);
+        }
+        
+        $orders = $query->latest()->paginate($perPage);
 
         return response()->json($orders);
     }
@@ -89,7 +104,7 @@ class OrderController extends Controller
     }
 
     /**
-     * Batalkan order
+     * Cancel order with refund logic
      */
     public function cancel(Order $order)
     {
@@ -103,12 +118,48 @@ class OrderController extends Controller
             ], 400);
         }
 
-        $order->update(['status' => 'cancelled']);
+        return DB::transaction(function () use ($order) {
+            // 1. Check if payment exists and is paid
+            $payment = $order->payment;
+            
+            if ($payment && $payment->status === 'paid') {
+                // 2. Process refund via Tripay
+                $tripayService = app(\App\Services\TripayService::class);
+                $refundResult = $tripayService->requestRefund($payment);
+                
+                if ($refundResult['success']) {
+                    $payment->update([
+                        'status' => 'refunded',
+                        'refunded_at' => now()
+                    ]);
+                }
+            }
+            
+            // 3. Return stock to products
+            foreach ($order->orderItems as $item) {
+                $product = $item->product;
+                $product->increment('stock', $item->quantity);
+            }
+            
+            // 4. Cancel delivery if exists
+            if ($order->deliveryOrder) {
+                $order->deliveryOrder->update(['status' => 'cancelled']);
+            }
+            
+            // 5. Update order status
+            $order->update([
+                'status' => 'cancelled',
+                'cancelled_at' => now()
+            ]);
+            
+            // 6. Log activity
+            \App\Services\ActivityLogger::logOrderCancelled($order, 'Cancelled by user');
 
-        return response()->json([
-            'message' => 'Order cancelled successfully',
-            'order' => $order,
-        ]);
+            return response()->json([
+                'message' => 'Order cancelled successfully' . ($payment && $payment->status === 'refunded' ? ' and refund processed' : ''),
+                'order' => $order->fresh()->load(['orderItems.product', 'deliveryOrder', 'payment']),
+            ]);
+        });
     }
 
     /**
@@ -214,12 +265,22 @@ class OrderController extends Controller
         }
 
         $request->validate([
-            'photo' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+            'photo' => 'required|image|mimes:jpeg,png,jpg|max:5120', // Max 5MB
             'description' => 'nullable|string|max:255',
         ]);
 
-        $fileName = 'order_' . $order->id . '_' . time() . '_' . $request->file('photo')->getClientOriginalName();
-        $path = $request->file('photo')->storeAs('order_photos', $fileName, 'public');
+        // Optimize and save image
+        $image = $request->file('photo');
+        $filename = 'order_' . $order->id . '_' . time() . '_' . uniqid() . '.jpg';
+        
+        $manager = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver());
+        $img = $manager->read($image->getPathname());
+        $img->scale(width: 1200); // Larger size for order photos
+        $encoded = $img->toJpeg(80);
+        
+        $path = 'order_photos/' . $filename;
+        Storage::disk('public')->put($path, (string) $encoded);
+        
         $url = Storage::disk('public')->url($path);
 
         return response()->json([

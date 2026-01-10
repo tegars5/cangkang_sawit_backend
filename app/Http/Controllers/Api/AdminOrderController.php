@@ -10,6 +10,31 @@ use Illuminate\Http\Request;
 
 class AdminOrderController
 {
+    /**
+     * List all orders for admin with pagination
+     */
+    public function index(Request $request)
+    {
+        if (auth()->user()->role !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized. Admin access required.',
+            ], 403);
+        }
+        
+        $perPage = $request->input('per_page', 15);
+        $status = $request->input('status');
+        
+        $query = Order::with(['orderItems.product', 'deliveryOrder.driver', 'user', 'payment']);
+        
+        if ($status) {
+            $query->where('status', $status);
+        }
+        
+        $orders = $query->latest()->paginate($perPage);
+        
+        return response()->json($orders);
+    }
+    
     public function approve(Order $order, Request $request)
 {
     // Hanya admin
@@ -30,6 +55,18 @@ class AdminOrderController
     $order->update([
         'status' => 'confirmed',
     ]);
+    
+    // Send notification to mitra
+    $notificationService = app(\App\Services\NotificationService::class);
+    $notificationService->sendOrderNotification(
+        $order,
+        'Order Approved',
+        "Your order {$order->order_code} has been approved by admin",
+        'order.approved'
+    );
+    
+    // Log activity
+    \App\Services\ActivityLogger::logOrderApproved($order);
 
     return response()->json([
         'message' => 'Order approved successfully',
@@ -66,6 +103,31 @@ class AdminOrderController
         );
 
         $order->update(['status' => 'on_delivery']);
+        
+        // Update driver availability to busy
+        $driver->update(['availability_status' => 'busy']);
+        
+        // Send notifications
+        $notificationService = app(\App\Services\NotificationService::class);
+        
+        // Notify mitra
+        $notificationService->sendOrderNotification(
+            $order,
+            'Driver Assigned',
+            "Driver {$driver->name} has been assigned to your order",
+            'driver.assigned'
+        );
+        
+        // Notify driver
+        $notificationService->sendDriverNotification(
+            $driver->id,
+            'New Delivery Assignment',
+            "You have been assigned to deliver order {$order->order_code}",
+            ['delivery_order_id' => $deliveryOrder->id, 'order_code' => $order->order_code]
+        );
+        
+        // Log activity
+        \App\Services\ActivityLogger::logDriverAssigned($order, $driver);
 
         return response()->json([
             'message' => 'Driver assigned successfully',

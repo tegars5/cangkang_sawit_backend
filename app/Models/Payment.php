@@ -16,6 +16,7 @@ class Payment extends Model
         'paid_at',
         'expired_at',
         'raw_response',
+        'refunded_at',
     ];
 
     protected $casts = [
@@ -23,6 +24,7 @@ class Payment extends Model
         'paid_at' => 'datetime',
         'expired_at' => 'datetime',
         'raw_response' => 'array',
+        'refunded_at' => 'datetime',
     ];
 
     public function order()
