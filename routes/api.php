@@ -9,8 +9,12 @@ use App\Http\Controllers\Api\AdminDashboardController;
 use App\Http\Controllers\Api\DriverOrderController;
 use App\Http\Controllers\Api\WaybillController;
 use App\Http\Controllers\Api\DistanceController;
+use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\AdminDriverController;
 use Illuminate\Support\Facades\Route;
 
+// Public Routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/payment/tripay/callback', [PaymentController::class, 'callback']);
@@ -22,27 +26,22 @@ Route::middleware('auth:sanctum')->group(function () {
     
     /* --- PROFILE ROUTES --- */
     Route::prefix('profile')->group(function () {
-        Route::get('/', [App\Http\Controllers\Api\ProfileController::class, 'show']);
-        Route::put('/', [App\Http\Controllers\Api\ProfileController::class, 'update']);
-        Route::put('/password', [App\Http\Controllers\Api\ProfileController::class, 'changePassword']);
-        Route::post('/photo', [App\Http\Controllers\Api\ProfileController::class, 'uploadPhoto']);
+        Route::get('/', [ProfileController::class, 'show']);
+        Route::put('/', [ProfileController::class, 'update']);
+        Route::put('/password', [ProfileController::class, 'changePassword']);
+        Route::post('/photo', [ProfileController::class, 'uploadPhoto']);
     });
     
     /* --- FCM TOKEN ROUTE --- */
-    Route::post('/fcm-token', [App\Http\Controllers\Api\UserController::class, 'updateFcmToken']);
+    Route::post('/fcm-token', [UserController::class, 'updateFcmToken']);
 
     /* --- PRODUCT ROUTES --- */
-    // Publik (Bisa diakses siapa saja yang login)
-    Route::get('/products', [ProductController::class, 'index']);
-    Route::get('/products/search', [ProductController::class, 'search']);
     Route::get('/products/categories', [ProductController::class, 'getCategories']);
-    Route::get('/products/{product}', [ProductController::class, 'show']);
-    
-    // Khusus Admin
+    Route::get('/products/search', [ProductController::class, 'search']);
+    Route::apiResource('products', ProductController::class)->only(['index', 'show']);
     Route::middleware('role:admin')->group(function () {
-        Route::post('/products', [ProductController::class, 'store']);
-        Route::post('/products/{product}', [ProductController::class, 'update']);
-        Route::delete('/products/{product}', [ProductController::class, 'destroy']);
+        Route::post('/products/{product}', [ProductController::class, 'update']);    
+        Route::apiResource('products', ProductController::class)->only(['store', 'destroy']);
     });
 
     /* --- ORDER ROUTES --- */
@@ -53,11 +52,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{order}/cancel', [OrderController::class, 'cancel']);
         Route::get('/{order}/tracking', [OrderController::class, 'tracking']);
         Route::post('/{order}/pay', [PaymentController::class, 'pay']);
-        
-        // Foto Order
         Route::post('/{order}/upload-photo', [OrderController::class, 'uploadPhoto']);
         Route::get('/{order}/photos', [OrderController::class, 'photos']);
-        
         Route::get('/{order}/waybill', [OrderController::class, 'showWaybill']);
         Route::get('/{order}/waybill/pdf', [WaybillController::class, 'downloadWaybillPdf']);
         Route::get('/{order}/distance', [DistanceController::class, 'orderDistance']);
@@ -71,10 +67,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/orders/{order}/approve', [AdminOrderController::class, 'approve']);
         Route::post('/orders/{order}/waybill', [AdminOrderController::class, 'createWaybill']);
         Route::post('/orders/{order}/assign-driver', [AdminOrderController::class, 'assignDriver']);
-        
-        // Driver management
-        Route::get('/drivers', [App\Http\Controllers\Api\AdminDriverController::class, 'index']);
-        Route::get('/drivers/available', [App\Http\Controllers\Api\AdminDriverController::class, 'available']);
+        Route::get('/drivers', [AdminDriverController::class, 'index']);
+        Route::get('/drivers/available', [AdminDriverController::class, 'available']);
     });
 
     /* --- DRIVER ROUTES --- */

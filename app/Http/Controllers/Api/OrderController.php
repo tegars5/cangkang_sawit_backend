@@ -42,11 +42,18 @@ class OrderController extends Controller
         return response()->json($orders);
     }
 
-    /**
+/**
      * Simpan order baru
      */
     public function store(Request $request)
     {
+        if (is_string($request->items)) {
+            $request->merge([
+                'items' => json_decode($request->items, true)
+            ]);
+        }
+
+        // Validasi sekarang akan berjalan lancar karena 'items' sudah pasti berbentuk Array
         $request->validate([
             'destination_address' => 'required|string',
             'destination_lat' => 'nullable|numeric',
@@ -57,6 +64,7 @@ class OrderController extends Controller
         ]);
 
         return DB::transaction(function () use ($request) {
+            // ... (kode sisa kakak ke bawah tetap sama)
             $order = Order::create([
                 'user_id' => $request->user()->id,
                 'order_code' => 'ORD-' . strtoupper(uniqid()),

@@ -19,14 +19,14 @@ class Order extends Model
         'cancelled_at',
     ];
 
-    protected $casts = [
-        'total_amount' => 'decimal:2',
-        'destination_lat' => 'decimal:8',
-        'destination_lng' => 'decimal:8',
-        'distance_km' => 'decimal:2',
-        'estimated_minutes' => 'integer',
-        'cancelled_at' => 'datetime',
-    ];
+ protected $casts = [
+    'total_amount' => 'double',    
+    'destination_lat' => 'double', 
+    'destination_lng' => 'double', 
+    'distance_km' => 'double',      
+    'estimated_minutes' => 'integer',
+    'cancelled_at' => 'datetime',
+];
 
     public function user()
     {
