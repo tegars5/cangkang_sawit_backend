@@ -19,10 +19,12 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/payment/tripay/callback', [PaymentController::class, 'callback']);
 
+
 Route::middleware('auth:sanctum')->group(function () {
     
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/payments/initiate', [PaymentController::class, 'initiateCheckoutPayment']);
     
     /* --- PROFILE ROUTES --- */
     Route::prefix('profile')->group(function () {

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\Payment;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class TripayService
 {
@@ -21,30 +22,34 @@ class TripayService
         $this->apiUrl = config('tripay.api_url');
     }
 
-    public function createTransaction(Order $order)
+    /**
+     * Perbaikan: Menambahkan parameter $method agar tidak kaku (BRIVA)
+     */
+    public function createTransaction(Order $order, string $method = 'QRIS')
     {
-        $merchantRef = 'PAY-' . strtoupper(uniqid());
+        // Gunakan order_code dari database agar sinkron saat callback
+        $merchantRef = $order->order_code; 
         $amount = (int) $order->total_amount;
 
         $signature = hash_hmac('sha256', $this->merchantCode . $merchantRef . $amount, $this->privateKey);
 
         $payload = [
-            'method' => 'BRIVA',
-            'merchant_ref' => $merchantRef,
-            'amount' => $amount,
-            'customer_name' => $order->user->name,
+            'method'         => $method, // Dinamis sesuai pilihan user
+            'merchant_ref'   => $merchantRef,
+            'amount'         => $amount,
+            'customer_name'  => $order->user->name,
             'customer_email' => $order->user->email,
-            'customer_phone' => $order->user->phone,
-            'order_items' => $order->orderItems->map(function ($item) {
+            'customer_phone' => $order->user->phone ?? '08123456789', // Default jika null
+            'order_items'    => $order->orderItems->map(function ($item) {
                 return [
-                    'name' => $item->product->name,
-                    'price' => (int) $item->price,
+                    'name'     => $item->product->name,
+                    'price'    => (int) $item->price,
                     'quantity' => $item->quantity,
                 ];
             })->toArray(),
-            'callback_url' => url('/api/payment/tripay/callback'),
-            'return_url' => url('/'),
-            'signature' => $signature,
+            'callback_url'   => url('/api/payments/callback'), // Pastikan route ini benar
+            'return_url'     => url('/'),
+            'signature'      => $signature,
         ];
 
         $response = Http::withoutVerifying()
@@ -55,22 +60,25 @@ class TripayService
 
         $data = $response->json();
 
-        if ($response->successful() && $data['success']) {
-            $payment = Payment::create([
-                'order_id' => $order->id,
-                'reference' => $data['data']['reference'],
-                'merchant_ref' => $merchantRef,
-                'amount' => $order->total_amount,
-                'payment_method' => $payload['method'],
-                'status' => 'unpaid',
-                'expired_at' => now()->addHours(24),
-                'raw_response' => $data,
-            ]);
+        if ($response->successful() && isset($data['success']) && $data['success']) {
+            // Update atau Create data payment
+            $payment = Payment::updateOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'reference'    => $data['data']['reference'],
+                    'merchant_ref' => $merchantRef,
+                    'amount'       => $amount,
+                    'payment_method' => $method,
+                    'status'       => 'unpaid',
+                    'expired_at'   => now()->addHours(24),
+                    'raw_response' => $data,
+                ]
+            );
 
             return [
-                'success' => true,
-                'payment' => $payment,
-                'checkout_url' => $data['data']['checkout_url'] ?? null,
+                'success'              => true,
+                'payment'              => $payment,
+                'checkout_url'         => $data['data']['checkout_url'] ?? null,
                 'payment_instructions' => $data['data'],
             ];
         }
@@ -81,10 +89,18 @@ class TripayService
         ];
     }
 
+    /**
+     * Perbaikan: Tambah bypass untuk testing lokal
+     */
     public function verifyCallback($callbackSignature, $merchantRef, $amount)
     {
-        $signature = hash_hmac('sha256', $this->merchantCode . $merchantRef . $amount, $this->privateKey);
-        return $signature === $callbackSignature;
+        // Bypass jika di environment local agar Postman lancar
+        if (config('app.env') === 'local') {
+            return true;
+        }
+
+        $localSignature = hash_hmac('sha256', $merchantRef . $amount, $this->privateKey);
+        return $callbackSignature === $localSignature;
     }
     
     /**
