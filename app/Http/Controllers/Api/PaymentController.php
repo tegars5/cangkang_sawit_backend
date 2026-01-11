@@ -125,31 +125,39 @@ class PaymentController
     /**
      * Handler Callback dari Tripay
      */
-  public function callback(Request $request)
+public function callback(Request $request)
 {
-    // Tambahkan log untuk intip data yang masuk di storage/logs/laravel.log
-    \Log::info('Callback Masuk:', $request->all());
+    $json = $request->getContent();
+    $data = json_decode($json);
 
-    $merchantRef = $request->merchant_ref;
-    $amount = $request->amount;
+    if (!$data) return response()->json(['message' => 'Data Kosong'], 400);
 
-    // Paksa cari payment
-    $payment = Payment::where('merchant_ref', $merchantRef)->first();
+    // Cari payment berdasarkan merchant_ref (ORD-xxx)
+    $payment = \App\Models\Payment::where('merchant_ref', $data->merchant_ref)->first();
 
     if (!$payment) {
-        return response()->json(['message' => 'Payment tidak ditemukan di DB: ' . $merchantRef], 404);
+        \Log::error("Callback Gagal: Ref {$data->merchant_ref} tidak ada di DB.");
+        return response()->json(['message' => 'Payment not found'], 404);
     }
 
-    return DB::transaction(function () use ($request, $payment) {
-        // Kita langsung hajar update tanpa cek signature & status dari Tripay dulu (Hanya untuk TEST)
-        $payment->update([
-            'status' => 'paid',
-            'paid_at' => now(),
-        ]);
+    if ($data->status === 'PAID') {
+        \DB::transaction(function () use ($payment) {
+            // 1. Update Payment jadi PAID
+            $payment->update([
+                'status' => 'paid',
+                'paid_at' => now(),
+            ]);
 
-        $payment->order->update(['status' => 'pending']);
+            // 2. Update Order jadi PENDING (untuk diproses admin)
+            if ($payment->order) {
+                $payment->order->update(['status' => 'pending']);
+            }
+        });
 
-        return response()->json(['success' => true, 'message' => 'DB Berhasil Diupdate']);
-    });
+        \Log::info("DATABASE BERHASIL UPDATE: " . $data->merchant_ref);
+        return response()->json(['success' => true]);
+    }
+
+    return response()->json(['message' => 'Status is ' . $data->status]);
 }
 }

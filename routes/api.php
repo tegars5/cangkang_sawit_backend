@@ -24,7 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::post('/payments/initiate', [PaymentController::class, 'initiateCheckoutPayment']);
+   Route::post('/payments/initiate-checkout', [PaymentController::class, 'initiateCheckoutPayment']);
     
     /* --- PROFILE ROUTES --- */
     Route::prefix('profile')->group(function () {

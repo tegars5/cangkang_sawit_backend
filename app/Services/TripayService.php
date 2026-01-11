@@ -47,7 +47,7 @@ class TripayService
                     'quantity' => $item->quantity,
                 ];
             })->toArray(),
-            'callback_url'   => url('/api/payments/callback'), // Pastikan route ini benar
+            'callback_url' => 'https://unpensionable-zander-unmotioned.ngrok-free.dev/api/payment/tripay/callback', // Pastikan route ini benar
             'return_url'     => url('/'),
             'signature'      => $signature,
         ];
