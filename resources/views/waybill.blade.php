@@ -2,135 +2,85 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Surat Jalan - {{ $waybill->waybill_number }}</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            margin: 20px;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #000;
-            padding-bottom: 10px;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 24px;
-        }
-        .info-section {
-            margin-bottom: 20px;
-        }
-        .info-row {
-            display: flex;
-            margin-bottom: 5px;
-        }
-        .info-label {
-            width: 150px;
-            font-weight: bold;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-        }
-        table th, table td {
-            border: 1px solid #000;
-            padding: 8px;
-            text-align: left;
-        }
-        table th {
-            background-color: #f0f0f0;
-            font-weight: bold;
-        }
-        .signature-section {
-            margin-top: 50px;
-            display: flex;
-            justify-content: space-between;
-        }
-        .signature-box {
-            width: 45%;
-            text-align: center;
-        }
-        .signature-line {
-            margin-top: 80px;
-            border-top: 1px solid #000;
-            padding-top: 5px;
-        }
+        body { font-family: sans-serif; font-size: 11px; color: #333; }
+        .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+        .logo { width: 70px; height: auto; }
+        .company-info { text-align: right; }
+        .company-name { font-size: 18px; font-weight: bold; margin: 0; }
+        
+        .info-table { width: 100%; margin-bottom: 20px; }
+        .info-table td { padding: 2px; vertical-align: top; }
+        
+        .content-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        .content-table th, .content-table td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        .content-table th { background-color: #f5f5f5; }
+        
+        .footer-table { width: 100%; margin-top: 40px; }
+        .signature-box { text-align: center; width: 45%; }
+        .space { height: 60px; }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <div class="header">
-        <h1>SURAT JALAN</h1>
-        <p>Cangkang Sawit Logistics</p>
-    </div>
 
-    <!-- Waybill Info -->
-    <div class="info-section">
-        <div class="info-row">
-            <div class="info-label">No. Surat Jalan:</div>
-            <div>{{ $waybill->waybill_number }}</div>
-        </div>
-        <div class="info-row">
-            <div class="info-label">No. Order:</div>
-            <div>{{ $order->order_code }}</div>
-        </div>
-        <div class="info-row">
-            <div class="info-label">Tanggal:</div>
-            <div>{{ $waybill->created_at->format('d F Y') }}</div>
-        </div>
-    </div>
+    <table class="header-table">
+        <tr>
+            <td>
+                @if($logo)
+                    <img src="{{ $logo }}" class="logo">
+                @endif
+            </td>
+            <td class="company-info">
+                <p class="company-name">PT Fujiyama Biomass Energy</p>
+                <p style="margin:0;">Jl. Lintas Sumatera, Jambi, Indonesia</p>
+                <p style="margin:0;">Email: support@cangkangsawit.com</p>
+            </td>
+        </tr>
+    </table>
 
-    <!-- Mitra Info -->
-    <div class="info-section">
-        <h3>Informasi Mitra</h3>
-        <div class="info-row">
-            <div class="info-label">Nama:</div>
-            <div>{{ $mitra->name }}</div>
-        </div>
-        <div class="info-row">
-            <div class="info-label">Email:</div>
-            <div>{{ $mitra->email }}</div>
-        </div>
-        <div class="info-row">
-            <div class="info-label">Alamat Tujuan:</div>
-            <div>{{ $order->destination_address }}</div>
-        </div>
-    </div>
+    <h2 style="text-align: center; text-decoration: underline;">SURAT JALAN</h2>
 
-    <!-- Driver Info -->
-    <div class="info-section">
-        <h3>Informasi Driver</h3>
-        <div class="info-row">
-            <div class="info-label">Nama:</div>
-            <div>{{ $driver->name ?? '-' }}</div>
-        </div>
-        <div class="info-row">
-            <div class="info-label">Email:</div>
-            <div>{{ $driver->email ?? '-' }}</div>
-        </div>
-    </div>
+    <table class="info-table">
+        <tr>
+            <td width="15%">No. Waybill</td>
+            <td width="2%">:</td>
+            <td width="33%"><strong>{{ $waybill->waybill_number }}</strong></td>
+            <td width="15%">Tujuan</td>
+            <td width="2%">:</td>
+            <td width="33%">{{ $order->destination_address }}</td>
+        </tr>
+        <tr>
+            <td>No. Order</td>
+            <td>:</td>
+            <td>{{ $order->order_code }}</td>
+            <td>Driver</td>
+            <td>:</td>
+            <td>{{ $driver->name ?? 'Belum ada driver' }}</td>
+        </tr>
+        <tr>
+            <td>Tanggal</td>
+            <td>:</td>
+            <td>{{ $waybill->created_at->format('d M Y') }}</td>
+            <td>Mitra</td>
+            <td>:</td>
+            <td>{{ $mitra->name ?? '-' }}</td>
+        </tr>
+    </table>
 
-    <!-- Items Table -->
-    <h3>Daftar Barang</h3>
-    <table>
+    <table class="content-table">
         <thead>
             <tr>
-                <th>No</th>
                 <th>Nama Produk</th>
-                <th>Jumlah</th>
+                <th width="15%">Jumlah</th>
                 <th>Harga Satuan</th>
                 <th>Subtotal</th>
             </tr>
         </thead>
         <tbody>
-            @foreach($items as $index => $item)
+            @foreach($items as $item)
             <tr>
-                <td>{{ $index + 1 }}</td>
-                <td>{{ $item->product->name }}</td>
+                <td>{{ $item->product->name ?? 'Produk' }}</td>
                 <td>{{ $item->quantity }}</td>
                 <td>Rp {{ number_format($item->price, 0, ',', '.') }}</td>
                 <td>Rp {{ number_format($item->subtotal, 0, ',', '.') }}</td>
@@ -139,34 +89,27 @@
         </tbody>
         <tfoot>
             <tr>
-                <th colspan="4" style="text-align: right;">Total:</th>
-                <th>Rp {{ number_format($order->total_amount, 0, ',', '.') }}</th>
+                <td colspan="3" style="text-align: right; font-weight: bold;">TOTAL</td>
+                <td style="font-weight: bold;">Rp {{ number_format($order->total_amount, 0, ',', '.') }}</td>
             </tr>
         </tfoot>
     </table>
 
-    <!-- Notes -->
-    @if($waybill->notes)
-    <div class="info-section">
-        <h3>Catatan</h3>
-        <p>{{ $waybill->notes }}</p>
-    </div>
-    @endif
+    <table class="footer-table">
+        <tr>
+            <td class="signature-box">
+                <p>Hormat Kami,</p>
+                <div class="space"></div>
+                <p><strong>( Admin Gudang )</strong></p>
+            </td>
+            <td width="10%"></td>
+            <td class="signature-box">
+                <p>Diterima Oleh,</p>
+                <div class="space"></div>
+                <p><strong>( {{ $mitra->name ?? '....................' }} )</strong></p>
+            </td>
+        </tr>
+    </table>
 
-    <!-- Signature Section -->
-    <div class="signature-section">
-        <div class="signature-box">
-            <p>Pengirim,</p>
-            <div class="signature-line">
-                <p>{{ $driver->name ?? '_______________' }}</p>
-            </div>
-        </div>
-        <div class="signature-box">
-            <p>Penerima,</p>
-            <div class="signature-line">
-                <p>_______________</p>
-            </div>
-        </div>
-    </div>
 </body>
 </html>

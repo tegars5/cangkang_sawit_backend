@@ -14,18 +14,28 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminDriverController;
 use Illuminate\Support\Facades\Route;
 
-// Public Routes
+/*
+|--------------------------------------------------------------------------
+| PUBLIC ROUTES (Bisa diakses tanpa Login / Token)
+|--------------------------------------------------------------------------
+*/
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/payment/tripay/callback', [PaymentController::class, 'callback']);
+Route::get('/orders/{order}/waybill/pdf', [WaybillController::class, 'downloadWaybillPdf']);
 
 
+/*
+|--------------------------------------------------------------------------
+| PROTECTED ROUTES (Wajib membawa Token Sanctum)
+|--------------------------------------------------------------------------
+*/
 Route::middleware('auth:sanctum')->group(function () {
     
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
-   Route::post('/payments/initiate-checkout', [PaymentController::class, 'initiateCheckoutPayment']);
-    
+    Route::post('/payments/initiate-checkout', [PaymentController::class, 'initiateCheckoutPayment']);
+
     /* --- PROFILE ROUTES --- */
     Route::prefix('profile')->group(function () {
         Route::get('/', [ProfileController::class, 'show']);
@@ -34,19 +44,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/photo', [ProfileController::class, 'uploadPhoto']);
     });
     
-    /* --- FCM TOKEN ROUTE --- */
+    /* --- USER/FCM --- */
     Route::post('/fcm-token', [UserController::class, 'updateFcmToken']);
 
     /* --- PRODUCT ROUTES --- */
     Route::get('/products/categories', [ProductController::class, 'getCategories']);
     Route::get('/products/search', [ProductController::class, 'search']);
     Route::apiResource('products', ProductController::class)->only(['index', 'show']);
-    Route::middleware('role:admin')->group(function () {
-        Route::post('/products/{product}', [ProductController::class, 'update']);    
-        Route::apiResource('products', ProductController::class)->only(['store', 'destroy']);
-    });
 
-    /* --- ORDER ROUTES --- */
+    /* --- ORDER ROUTES (General User & Driver) --- */
     Route::prefix('orders')->group(function () {
         Route::get('/', [OrderController::class, 'index']);
         Route::post('/', [OrderController::class, 'store']);
@@ -57,23 +63,31 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{order}/upload-photo', [OrderController::class, 'uploadPhoto']);
         Route::get('/{order}/photos', [OrderController::class, 'photos']);
         Route::get('/{order}/waybill', [OrderController::class, 'showWaybill']);
-        Route::get('/{order}/waybill/pdf', [WaybillController::class, 'downloadWaybillPdf']);
         Route::get('/{order}/distance', [DistanceController::class, 'orderDistance']);
         Route::get('/{order}/driver-distance', [DistanceController::class, 'driverDistance']);
     });
 
-    /* --- ADMIN ROUTES --- */
+    /* --- ADMIN ROUTES (Hanya Role Admin) --- */
     Route::middleware('role:admin')->prefix('admin')->group(function () {
         Route::get('/dashboard-summary', [AdminDashboardController::class, 'summary']);
+        
+        // Admin Product Management
+        Route::post('/products/{product}', [ProductController::class, 'update']);    
+        Route::apiResource('products', ProductController::class)->only(['store', 'destroy']);
+        
+        // Admin Order Management
         Route::get('/orders', [AdminOrderController::class, 'index']);
+        Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
         Route::post('/orders/{order}/approve', [AdminOrderController::class, 'approve']);
         Route::post('/orders/{order}/waybill', [AdminOrderController::class, 'createWaybill']);
         Route::post('/orders/{order}/assign-driver', [AdminOrderController::class, 'assignDriver']);
+        
+        // Admin Driver Management
         Route::get('/drivers', [AdminDriverController::class, 'index']);
         Route::get('/drivers/available', [AdminDriverController::class, 'available']);
     });
 
-    /* --- DRIVER ROUTES --- */
+    /* --- DRIVER ROUTES (Hanya Role Driver) --- */
     Route::middleware('role:driver')->prefix('driver')->group(function () {
         Route::get('/orders', [DriverOrderController::class, 'index']);
         Route::post('/delivery-orders/{deliveryOrder}/status', [DriverOrderController::class, 'updateStatus']);

@@ -7,6 +7,7 @@ use App\Models\DeliveryOrder;
 use App\Models\User;
 use App\Models\Waybill;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class AdminOrderController
 {
@@ -73,69 +74,79 @@ class AdminOrderController
         'order'   => $order->load(['orderItems.product', 'deliveryOrder.driver', 'user']),
     ]);
 }
-    public function assignDriver(Order $order, Request $request)
-    {
-        if (auth()->user()->role !== 'admin') {
-            return response()->json([
-                'message' => 'Unauthorized. Admin access required.',
-            ], 403);
-        }
-
-        $request->validate([
-            'driver_id' => 'required|exists:users,id',
+public function show(Order $order)
+{
+    try {
+        $order->load([
+            'user', 
+            'orderItems.product', 
+            'payment'
         ]);
-
-        $driver = User::findOrFail($request->driver_id);
-
-        if ($driver->role !== 'driver') {
-            return response()->json([
-                'message' => 'Selected user is not a driver.',
-            ], 400);
-        }
-
-        $deliveryOrder = DeliveryOrder::updateOrCreate(
-            ['order_id' => $order->id],
-            [
-                'driver_id' => $request->driver_id,
-                'status' => 'assigned',
-                'assigned_at' => now(),
-            ]
-        );
-
-        $order->update(['status' => 'on_delivery']);
-        
-        // Update driver availability to busy
-        $driver->update(['availability_status' => 'busy']);
-        
-        // Send notifications
-        $notificationService = app(\App\Services\NotificationService::class);
-        
-        // Notify mitra
-        $notificationService->sendOrderNotification(
-            $order,
-            'Driver Assigned',
-            "Driver {$driver->name} has been assigned to your order",
-            'driver.assigned'
-        );
-        
-        // Notify driver
-        $notificationService->sendDriverNotification(
-            $driver->id,
-            'New Delivery Assignment',
-            "You have been assigned to deliver order {$order->order_code}",
-            ['delivery_order_id' => $deliveryOrder->id, 'order_code' => $order->order_code]
-        );
-        
-        // Log activity
-        \App\Services\ActivityLogger::logDriverAssigned($order, $driver);
 
         return response()->json([
-            'message' => 'Driver assigned successfully',
-            'order' => $order->load(['orderItems.product', 'deliveryOrder.driver', 'user']),
-            'delivery_order' => $deliveryOrder->load('driver'),
+            'success' => true,
+            'data' => $order
         ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Gagal memuat detail pesanan: ' . $e->getMessage()
+        ], 500);
     }
+}
+public function assignDriver(Request $request, $id)
+{
+    // 1. Validasi Input: Pastikan driver ada di tabel users dan file adalah PDF
+    $request->validate([
+        'driver_id' => 'required|exists:users,id',
+        'waybill_pdf' => 'required|mimes:pdf|max:5120', // Maksimal 5MB
+    ]);
 
+    try {
+        $order = Order::findOrFail($id);
+
+        // 2. Proses Simpan File PDF
+        if ($request->hasFile('waybill_pdf')) {
+            $file = $request->file('waybill_pdf');
+            
+            // Nama file unik: waybill_IDORDER_WAKTU.pdf
+            $fileName = 'waybill_' . $order->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+            
+            // Simpan ke storage/app/public/waybills
+            $path = $file->storeAs('waybills', $fileName, 'public');
+
+            // 3. Simpan/Update data ke tabel waybills
+            // Kolom pdf_path diisi dengan $fileName sesuai struktur phpMyAdmin tadi
+            Waybill::updateOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'driver_id' => $request->driver_id,
+                    'waybill_number' => 'WB-' . strtoupper(Str::random(10)),
+                    'pdf_path' => $fileName, 
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]
+            );
+
+            // 4. Update Status Order menjadi 'on_delivery' (dalam perjalanan)
+            $order->update(['status' => 'on_delivery']);
+
+            // 5. Update Status Driver menjadi 'busy' (sedang sibuk)
+            User::where('id', $request->driver_id)->update(['availability_status' => 'busy']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Driver assigned and waybill uploaded successfully',
+                'data' => $order->load('deliveryOrder.driver', 'waybill')
+            ]);
+        }
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to assign driver: ' . $e->getMessage()
+        ], 500);
+    }
+}
     public function createWaybill(Order $order, Request $request)
     {
         if (auth()->user()->role !== 'admin') {

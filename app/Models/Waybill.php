@@ -11,6 +11,7 @@ class Waybill extends Model
         'driver_id',
         'waybill_number',
         'notes',
+        'pdf_path',
     ];
 
     public function order()
