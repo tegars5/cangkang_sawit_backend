@@ -82,6 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/orders/{order}/assign-driver', [AdminOrderController::class, 'assignDriver']);
         
         Route::get('/drivers', [AdminDriverController::class, 'index']);
+        Route::post('/drivers', [AdminDriverController::class, 'store']);
         Route::get('/drivers/available', [AdminDriverController::class, 'available']);
     });
 
@@ -91,6 +92,9 @@ Route::middleware('auth:sanctum')->group(function () {
         
         // Menggunakan PUT atau POST sesuai keinginan Front-end untuk update status
         Route::post('/orders/{id}/status', [DriverOrderController::class, 'updateStatus']);
+        
+        // Route untuk selesaikan pesanan (complete delivery)
+        Route::post('/orders/{id}/complete', [DriverOrderController::class, 'completeDelivery']);
         
         // Route Track ini untuk mencatat riwayat koordinat ke tabel delivery_tracks
         Route::post('/orders/{orderId}/track', [DriverOrderController::class, 'track']);

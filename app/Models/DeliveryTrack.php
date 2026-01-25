@@ -15,8 +15,8 @@ class DeliveryTrack extends Model
     ];
 
     protected $casts = [
-        'lat' => 'decimal:8',
-        'lng' => 'decimal:8',
+        'lat' => 'float',
+        'lng' => 'float',
         'recorded_at' => 'datetime',
     ];
 

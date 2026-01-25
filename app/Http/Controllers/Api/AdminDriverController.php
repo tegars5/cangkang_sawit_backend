@@ -50,4 +50,41 @@ class AdminDriverController extends Controller
         
         return response()->json($drivers);
     }
+    
+    /**
+     * Create a new driver account (Admin only)
+     */
+    public function store(Request $request)
+    {
+        if (auth()->user()->role !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized. Admin access required.',
+            ], 403);
+        }
+        
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+            'phone' => 'nullable|string|max:20',
+            'vehicle_type' => 'nullable|string|max:50',
+            'vehicle_number' => 'nullable|string|max:20',
+        ]);
+        
+        $driver = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => \Hash::make($request->password),
+            'role' => 'driver', // Hardcoded to driver
+            'phone' => $request->phone,
+            'vehicle_type' => $request->vehicle_type,
+            'vehicle_number' => $request->vehicle_number,
+            'availability_status' => 'available', // Default status
+        ]);
+        
+        return response()->json([
+            'message' => 'Driver created successfully',
+            'driver' => $driver,
+        ], 201);
+    }
 }

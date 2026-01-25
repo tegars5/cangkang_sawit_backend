@@ -175,6 +175,11 @@ class OrderController extends Controller
      */
   public function tracking(Order $order)
 {
+    // Authorization check - only order owner or admin can track
+    if ($order->user_id !== auth()->id() && auth()->user()->role !== 'admin') {
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
+
     // Ambil data delivery, tapi jangan error kalau kosong
     $deliveryOrder = $order->deliveryOrder()->with('driver')->first();
 
@@ -364,7 +369,15 @@ public function updateDriverLocation(Request $request, $orderId)
         ], 404);
     }
 
-    // 3. Simpan koordinat baru ke tabel delivery_tracks
+    // 3. Verify that the authenticated user is the assigned driver
+    if ($deliveryOrder->driver_id !== auth()->id()) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Unauthorized. You are not the assigned driver for this order.'
+        ], 403);
+    }
+
+    // 4. Simpan koordinat baru ke tabel delivery_tracks
     $track = \App\Models\DeliveryTrack::create([
         'delivery_order_id' => $deliveryOrder->id,
         'lat' => $request->lat,

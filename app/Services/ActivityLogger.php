@@ -63,4 +63,17 @@ class ActivityLogger
             'reason' => $reason,
         ]);
     }
+    
+    /**
+     * Log order completion by driver
+     */
+    public static function logOrderCompleted($order, $driver)
+    {
+        return self::log('order.completed', 'Order', $order->id, [
+            'order_code' => $order->order_code,
+            'driver_id' => $driver->id,
+            'driver_name' => $driver->name,
+            'completed_at' => now()->toDateTimeString(),
+        ]);
+    }
 }

@@ -15,14 +15,14 @@ class AuthController
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|in:admin,mitra,driver',
         ]);
 
+        // Public registration is only allowed for mitra role
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => $request->role,
+            'role' => 'mitra',
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;

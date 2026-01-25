@@ -181,6 +181,138 @@ public function updateStatus(Request $request, $id)
         ]);
     }
     
+    /**
+     * Complete Delivery - Selesaikan Pesanan dengan Validasi Radius (Geofencing)
+     * Called when driver clicks "SELESAIKAN PESANAN" button
+     * Validates that driver is within acceptable radius of destination
+     */
+    public function completeDelivery(Request $request, $id)
+    {
+        // 1. Validate driver's current location (required from Flutter)
+        $request->validate([
+            'lat' => 'required|numeric|between:-90,90',
+            'lng' => 'required|numeric|between:-180,180',
+        ]);
+
+        // Start database transaction for data integrity
+        \DB::beginTransaction();
+        
+        try {
+            // Find delivery order by order_id and ensure it belongs to authenticated driver
+            $delivery = DeliveryOrder::where('order_id', $id)
+                        ->where('driver_id', auth()->id())
+                        ->lockForUpdate() // Lock row to prevent concurrent updates
+                        ->first();
+
+            if (!$delivery) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pesanan tidak ditemukan atau akses ditolak.'
+                ], 404);
+            }
+
+            $order = $delivery->order;
+
+            // --- GEOFENCING VALIDATION ---
+            
+            // Get destination coordinates from order
+            $destLat = $order->destination_lat;
+            $destLng = $order->destination_lng;
+            
+            // Get driver's current coordinates from request
+            $driverLat = $request->lat;
+            $driverLng = $request->lng;
+
+            // Calculate distance in kilometers using Haversine formula
+            $distanceKm = $this->calculateDistance($driverLat, $driverLng, $destLat, $destLng);
+            
+            // Configuration: Tolerance radius (0.5 KM = 500 meters)
+            $radiusKm = 0.5; 
+
+            // If distance exceeds radius, reject completion
+            if ($distanceKm > $radiusKm) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal! Anda belum sampai di lokasi tujuan. Jarak Anda masih ' . number_format($distanceKm, 2) . ' km lagi.',
+                    'distance_km' => round($distanceKm, 2),
+                    'required_radius_km' => $radiusKm,
+                ], 400); // 400 Bad Request
+            }
+
+            // ------------------------------------------
+
+            // If validation passes, proceed with completion
+            
+            // 1. Update delivery status to 'delivered'
+            $delivery->update(['status' => 'delivered']);
+
+            // 2. Update order status to 'completed' and record arrival time
+            if ($order) {
+                $order->update([
+                    'status' => 'completed',
+                    'arrived_at' => now(),
+                ]);
+            }
+
+            // 3. IMPORTANT: Set driver availability back to 'available'
+            // So driver can receive new orders
+            $user = auth()->user();
+            $user->update(['availability_status' => 'available']);
+
+            // 4. Log activity for audit trail with location info
+            \App\Services\ActivityLogger::logOrderCompleted($order, $user);
+
+            // Commit all changes
+            \DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pesanan berhasil diselesaikan!',
+                'distance_from_destination' => round($distanceKm, 2) . ' km',
+            ]);
+
+        } catch (\Exception $e) {
+            // Rollback all changes if error occurs
+            \DB::rollBack();
+            \Log::error("Complete Delivery Error: " . $e->getMessage());
+            return response()->json([
+                'success' => false, 
+                'message' => 'Terjadi kesalahan sistem.'
+            ], 500);
+        }
+    }
+    
+    /**
+     * Calculate distance between two GPS coordinates using Haversine Formula
+     * Returns distance in kilometers
+     * 
+     * @param float $lat1 Latitude of point 1
+     * @param float $lon1 Longitude of point 1
+     * @param float $lat2 Latitude of point 2
+     * @param float $lon2 Longitude of point 2
+     * @return float Distance in kilometers
+     */
+    private function calculateDistance($lat1, $lon1, $lat2, $lon2)
+    {
+        // If coordinates are identical, distance is 0
+        if (($lat1 == $lat2) && ($lon1 == $lon2)) {
+            return 0;
+        }
+        
+        // Haversine formula
+        $theta = $lon1 - $lon2;
+        $dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) 
+                + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
+        $dist = acos($dist);
+        $dist = rad2deg($dist);
+        $miles = $dist * 60 * 1.1515;
+        
+        // Convert miles to kilometers
+        return ($miles * 1.609344);
+    }
+    
     public function updateAvailability(Request $request)
     {
         $request->validate([
