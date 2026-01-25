@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| PUBLIC ROUTES (Bisa diakses tanpa Login / Token)
+| PUBLIC ROUTES
 |--------------------------------------------------------------------------
 */
 Route::post('/register', [AuthController::class, 'register']);
@@ -24,10 +24,9 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/payment/tripay/callback', [PaymentController::class, 'callback']);
 Route::get('/orders/{order}/waybill/pdf', [WaybillController::class, 'downloadWaybillPdf']);
 
-
 /*
 |--------------------------------------------------------------------------
-| PROTECTED ROUTES (Wajib membawa Token Sanctum)
+| PROTECTED ROUTES (Sanctum)
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth:sanctum')->group(function () {
@@ -36,15 +35,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/payments/initiate-checkout', [PaymentController::class, 'initiateCheckoutPayment']);
 
-    /* --- PROFILE ROUTES --- */
+    /* --- PROFILE & USER --- */
     Route::prefix('profile')->group(function () {
         Route::get('/', [ProfileController::class, 'show']);
         Route::put('/', [ProfileController::class, 'update']);
         Route::put('/password', [ProfileController::class, 'changePassword']);
         Route::post('/photo', [ProfileController::class, 'uploadPhoto']);
     });
-    
-    /* --- USER/FCM --- */
     Route::post('/fcm-token', [UserController::class, 'updateFcmToken']);
 
     /* --- PRODUCT ROUTES --- */
@@ -52,7 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/products/search', [ProductController::class, 'search']);
     Route::apiResource('products', ProductController::class)->only(['index', 'show']);
 
-    /* --- ORDER ROUTES (General User & Driver) --- */
+    /* --- ORDER ROUTES (General User & Tracking) --- */
     Route::prefix('orders')->group(function () {
         Route::get('/', [OrderController::class, 'index']);
         Route::post('/', [OrderController::class, 'store']);
@@ -60,38 +57,44 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{order}/cancel', [OrderController::class, 'cancel']);
         Route::get('/{order}/tracking', [OrderController::class, 'tracking']);
         Route::post('/{order}/pay', [PaymentController::class, 'pay']);
+        
+        // Endpoint untuk Flutter mengirim lokasi GPS (Update Driver Location)
+        Route::post('/{order}/update-location', [OrderController::class, 'updateDriverLocation']);
+        
         Route::post('/{order}/upload-photo', [OrderController::class, 'uploadPhoto']);
         Route::get('/{order}/photos', [OrderController::class, 'photos']);
         Route::get('/{order}/waybill', [OrderController::class, 'showWaybill']);
-        Route::get('/{order}/distance', [DistanceController::class, 'orderDistance']);
-        Route::get('/{order}/driver-distance', [DistanceController::class, 'driverDistance']);
     });
 
-    /* --- ADMIN ROUTES (Hanya Role Admin) --- */
+    /* --- ADMIN ROUTES --- */
     Route::middleware('role:admin')->prefix('admin')->group(function () {
         Route::get('/dashboard-summary', [AdminDashboardController::class, 'summary']);
         
-        // Admin Product Management
-        Route::post('/products/{product}', [ProductController::class, 'update']);    
-        Route::apiResource('products', ProductController::class)->only(['store', 'destroy']);
+        // Product routes - update harus pakai POST karena multipart/form-data
+        Route::post('/products', [ProductController::class, 'store']);
+        Route::post('/products/{product}', [ProductController::class, 'update']);
+        Route::delete('/products/{product}', [ProductController::class, 'destroy']);
         
-        // Admin Order Management
         Route::get('/orders', [AdminOrderController::class, 'index']);
         Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
         Route::post('/orders/{order}/approve', [AdminOrderController::class, 'approve']);
         Route::post('/orders/{order}/waybill', [AdminOrderController::class, 'createWaybill']);
         Route::post('/orders/{order}/assign-driver', [AdminOrderController::class, 'assignDriver']);
         
-        // Admin Driver Management
         Route::get('/drivers', [AdminDriverController::class, 'index']);
         Route::get('/drivers/available', [AdminDriverController::class, 'available']);
     });
 
-    /* --- DRIVER ROUTES (Hanya Role Driver) --- */
+    /* --- DRIVER ROUTES --- */
     Route::middleware('role:driver')->prefix('driver')->group(function () {
         Route::get('/orders', [DriverOrderController::class, 'index']);
-        Route::post('/delivery-orders/{deliveryOrder}/status', [DriverOrderController::class, 'updateStatus']);
-        Route::post('/delivery-orders/{deliveryOrder}/track', [DriverOrderController::class, 'track']);
+        
+        // Menggunakan PUT atau POST sesuai keinginan Front-end untuk update status
+        Route::post('/orders/{id}/status', [DriverOrderController::class, 'updateStatus']);
+        
+        // Route Track ini untuk mencatat riwayat koordinat ke tabel delivery_tracks
+        Route::post('/orders/{orderId}/track', [DriverOrderController::class, 'track']);
+        
         Route::post('/availability', [DriverOrderController::class, 'updateAvailability']);
     });
 });

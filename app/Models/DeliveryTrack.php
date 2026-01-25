@@ -10,6 +10,7 @@ class DeliveryTrack extends Model
         'delivery_order_id',
         'lat',
         'lng',
+        'status', 
         'recorded_at',
     ];
 
@@ -19,6 +20,7 @@ class DeliveryTrack extends Model
         'recorded_at' => 'datetime',
     ];
 
+    // Relasi balik ke DeliveryOrder
     public function deliveryOrder()
     {
         return $this->belongsTo(DeliveryOrder::class);

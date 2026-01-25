@@ -42,6 +42,29 @@ class ProductController extends Controller
         return response()->json($products);
     }
 
+    /**
+     * Search products by name
+     */
+    public function search(Request $request)
+    {
+        $query = $request->input('q', '');
+        $perPage = $request->input('per_page', 15);
+        
+        $products = Product::where('name', 'LIKE', "%{$query}%")
+            ->orWhere('description', 'LIKE', "%{$query}%")
+            ->latest()
+            ->paginate($perPage);
+        
+        $products->getCollection()->transform(function ($product) {
+            if ($product->images) {
+                $product->images = $this->getFullUrl($product->images);
+            }
+            return $product;
+        });
+        
+        return response()->json($products);
+    }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -90,8 +113,13 @@ class ProductController extends Controller
 
  public function update(Request $request, Product $product)
 {
-    // Debugging: Buka ini kalau mau cek data apa yang masuk ke Laravel
-    // return response()->json($request->all());
+    // Log untuk debugging
+    \Log::info('Product Update Request', [
+        'product_id' => $product->id,
+        'has_file' => $request->hasFile('image_file'),
+        'all_data' => $request->all(),
+        'files' => $request->allFiles(),
+    ]);
 
     $request->validate([
         'name'        => 'sometimes|required|string|max:255',
@@ -105,32 +133,43 @@ class ProductController extends Controller
     $data = $request->only(['name', 'description', 'price', 'stock', 'category']);
 
     if ($request->hasFile('image_file')) {
-        // 1. Ambil path asli dari DB (pastikan bukan URL http://...)
-        $oldImagePath = $product->getRawOriginal('images');
+        try {
+            // 1. Ambil path asli dari DB (pastikan bukan URL http://...)
+            $oldImagePath = $product->getRawOriginal('images');
 
-        // 2. Hapus hanya jika path ada di DB dan file fisiknya ada
-        if (!empty($oldImagePath) && Storage::disk('public')->exists($oldImagePath)) {
-            Storage::disk('public')->delete($oldImagePath);
+            // 2. Hapus hanya jika path ada di DB dan file fisiknya ada
+            if (!empty($oldImagePath) && Storage::disk('public')->exists($oldImagePath)) {
+                Storage::disk('public')->delete($oldImagePath);
+                \Log::info('Deleted old image: ' . $oldImagePath);
+            }
+            
+            // 3. Proses Upload Baru
+            $image = $request->file('image_file');
+            $filename = 'product_' . time() . '_' . uniqid() . '.jpg';
+            
+            $manager = new ImageManager(new Driver());
+            $img = $manager->read($image->getPathname());
+            $img->scale(width: 800);
+            $encoded = $img->toJpeg(75);
+            
+            $path = 'products/' . $filename;
+            Storage::disk('public')->put($path, (string) $encoded);
+            
+            $data['images'] = $path;
+            
+            \Log::info('Uploaded new image: ' . $path);
+        } catch (\Exception $e) {
+            \Log::error('Image upload error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Gagal upload gambar: ' . $e->getMessage()
+            ], 500);
         }
-        
-        // 3. Proses Upload Baru
-        $image = $request->file('image_file');
-        $filename = 'product_' . time() . '_' . uniqid() . '.jpg';
-        
-        $manager = new ImageManager(new Driver());
-        $img = $manager->read($image->getPathname());
-        $img->scale(width: 800);
-        $encoded = $img->toJpeg(75);
-        
-        $path = 'products/' . $filename;
-        Storage::disk('public')->put($path, (string) $encoded);
-        
-        $data['images'] = $path;
     }
 
     $product->update($data);
 
     // Kirim response balik dengan URL Lengkap
+    $product->refresh();
     $product->images = $this->getFullUrl($product->images);
 
     return response()->json([

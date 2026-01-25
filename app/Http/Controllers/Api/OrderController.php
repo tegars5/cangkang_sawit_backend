@@ -56,8 +56,8 @@ class OrderController extends Controller
         // Validasi sekarang akan berjalan lancar karena 'items' sudah pasti berbentuk Array
         $request->validate([
             'destination_address' => 'required|string',
-            'destination_lat' => 'nullable|numeric',
-            'destination_lng' => 'nullable|numeric',
+            'destination_lat' => 'required|numeric', 
+            'destination_lng' => 'required|numeric',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
@@ -170,48 +170,63 @@ class OrderController extends Controller
         });
     }
 
-    /**
+ /**
      * Tracking lokasi driver
      */
-    public function tracking(Order $order)
-    {
-        $user = auth()->user();
+  public function tracking(Order $order)
+{
+    // Ambil data delivery, tapi jangan error kalau kosong
+    $deliveryOrder = $order->deliveryOrder()->with('driver')->first();
 
-        if ($order->user_id !== $user->id && $user->role !== 'admin') {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+    $response = [
+        'order_status' => $this->mapOrderStatus($order->status),
+        'driver_location' => null,
+        'destination_location' => [
+            'latitude' => (float) ($order->destination_lat ?? 0),
+            'longitude' => (float) ($order->destination_lng ?? 0),
+        ],
+        'distance_km' => (float) ($order->distance_km ?? 0),
+        'estimated_minutes' => $order->estimated_minutes ?? 0,
+        'driver' => null,
+    ];
 
-        $deliveryOrder = $order->deliveryOrder()->with('driver')->first();
+    // Cek apakah deliveryOrder dan driver benar-benar ADA sebelum diakses
+    if ($deliveryOrder && $deliveryOrder->driver) {
+        $lastLocation = $deliveryOrder->deliveryTracks()
+            ->orderBy('recorded_at', 'desc')
+            ->first();
 
-        $response = [
-            'driver_location' => null,
-            'order_status' => $this->mapOrderStatus($order->status),
-            'distance_km' => $order->distance_km ? (float) $order->distance_km : null,
-            'estimated_minutes' => $order->estimated_minutes,
-            'driver' => null,
-        ];
-
-        if ($deliveryOrder && $deliveryOrder->driver) {
-            $lastLocation = $deliveryOrder->deliveryTracks()
-                ->orderBy('recorded_at', 'desc')
-                ->first();
-
-            if ($lastLocation) {
-                $response['driver_location'] = [
-                    'latitude' => (float) $lastLocation->lat,
-                    'longitude' => (float) $lastLocation->lng,
-                ];
-            }
-
-            $response['driver'] = [
-                'name' => $deliveryOrder->driver->name,
-                'phone' => $deliveryOrder->driver->phone ?? null,
+        if ($lastLocation) {
+            $response['driver_location'] = [
+                'latitude' => (float) $lastLocation->lat,
+                'longitude' => (float) $lastLocation->lng,
             ];
         }
 
-        return response()->json($response);
+        $response['driver'] = [
+            'name' => $deliveryOrder->driver->name,
+            'phone' => (string) ($deliveryOrder->driver->phone ?? '-'),
+        ];
     }
 
+    return response()->json($response);
+}
+
+    /**
+     * Helper status mapping (Gunakan Versi Indonesia agar bagus di UI Flutter)
+     */
+     private function mapOrderStatus($status)
+    {
+        $statusMap = [
+            'pending' => 'pending',
+            'confirmed' => 'confirmed',
+            'on_delivery' => 'on_the_way',
+            'completed' => 'delivered',
+            'cancelled' => 'cancelled',
+        ];
+
+        return $statusMap[$status] ?? $status;
+    }
     /**
      * Tampilkan Surat Jalan (Waybill)
      */
@@ -328,20 +343,43 @@ class OrderController extends Controller
             'photos' => $orderPhotos,
         ]);
     }
-
     /**
-     * Helper status mapping
-     */
-    private function mapOrderStatus($status)
-    {
-        $statusMap = [
-            'pending' => 'pending',
-            'confirmed' => 'confirmed',
-            'on_delivery' => 'on_the_way',
-            'completed' => 'delivered',
-            'cancelled' => 'cancelled',
-        ];
+ * Endpoint untuk Driver mengupdate lokasi GPS
+ */
+public function updateDriverLocation(Request $request, $orderId)
+{
+    // 1. Validasi Input
+    $request->validate([
+        'lat' => 'required|numeric',
+        'lng' => 'required|numeric',
+    ]);
 
-        return $statusMap[$status] ?? $status;
+    // 2. Cari DeliveryOrder yang terhubung dengan Order ini
+    $deliveryOrder = \App\Models\DeliveryOrder::where('order_id', $orderId)->first();
+
+    if (!$deliveryOrder) {
+        return response()->json([
+            'success' => false, 
+            'message' => 'Data pengiriman tidak ditemukan'
+        ], 404);
     }
+
+    // 3. Simpan koordinat baru ke tabel delivery_tracks
+    $track = \App\Models\DeliveryTrack::create([
+        'delivery_order_id' => $deliveryOrder->id,
+        'lat' => $request->lat,
+        'lng' => $request->lng,
+        'recorded_at' => now(), 
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Lokasi berhasil diperbarui',
+        'data' => [
+            'lat' => $track->lat,
+            'lng' => $track->lng,
+            'time' => $track->recorded_at->format('H:i:s')
+        ]
+    ]);
+}
 }

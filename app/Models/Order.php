@@ -40,7 +40,7 @@ class Order extends Model
 
     public function deliveryOrder()
     {
-        return $this->hasOne(DeliveryOrder::class);
+        return $this->hasOne(DeliveryOrder::class, 'order_id');
     }
 
     public function payment()
