@@ -12,7 +12,7 @@ use Intervention\Image\Drivers\Gd\Driver;
 class ProductController extends Controller
 {
     const CATEGORIES = [
-        'Premium', 'Standard', 'Grade A', 'Grade B', 'Grade C', 'Organik', 'Non-Organik',
+        'Premium', 'Standard', 'Economy',
     ];
 
     /**
@@ -28,7 +28,15 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 15);
-        $products = Product::latest()->paginate($perPage);
+        
+        $query = Product::latest();
+        
+        // ADDED: Filter Category
+        if ($request->has('category') && !empty($request->category)) {
+             $query->where('category', $request->category);
+        }
+
+        $products = $query->paginate($perPage);
         
         $products->getCollection()->transform(function ($product) {
             // Kita simpan path aslinya di field lain jika butuh, 
@@ -48,12 +56,23 @@ class ProductController extends Controller
     public function search(Request $request)
     {
         $query = $request->input('q', '');
+        $category = $request->input('category');
         $perPage = $request->input('per_page', 15);
         
-        $products = Product::where('name', 'LIKE', "%{$query}%")
-            ->orWhere('description', 'LIKE', "%{$query}%")
-            ->latest()
-            ->paginate($perPage);
+        $productQuery = Product::query();
+
+        if (!empty($query)) {
+            $productQuery->where(function($q) use ($query) {
+                $q->where('name', 'LIKE', "%{$query}%")
+                  ->orWhere('description', 'LIKE', "%{$query}%");
+            });
+        }
+
+        if (!empty($category)) {
+            $productQuery->where('category', $category);
+        }
+        
+        $products = $productQuery->latest()->paginate($perPage);
         
         $products->getCollection()->transform(function ($product) {
             if ($product->images) {

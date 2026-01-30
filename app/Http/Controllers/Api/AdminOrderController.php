@@ -105,64 +105,67 @@ class AdminOrderController extends Controller
     }
 
     /**
-     * ✅ FIXED: Menugaskan Driver dan membuat jatah order (DeliveryOrder)
+     * ✅ UPDATED: Assign Driver WITHOUT PDF Upload (Auto-Generate)
+     * Admin hanya perlu pilih driver, PDF akan di-generate otomatis
      */
     public function assignDriver(Request $request, $id)
     {
         $request->validate([
             'driver_id' => 'required|exists:users,id',
-            'waybill_pdf' => 'required|mimes:pdf|max:5120',
+            // ❌ REMOVED: 'waybill_pdf' => 'required|mimes:pdf|max:5120',
         ]);
+
+        // Gunakan Transaction agar jika satu gagal, semua batal (Data bersih)
+        \DB::beginTransaction();
 
         try {
             $order = Order::findOrFail($id);
 
-            if ($request->hasFile('waybill_pdf')) {
-                $file = $request->file('waybill_pdf');
-                $fileName = 'waybill_' . $order->id . '_' . time() . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs('waybills', $fileName, 'public');
+            // 1. Simpan ke tabel Waybills (Tanpa PDF Path)
+            // PDF akan di-generate on-the-fly saat diakses
+            Waybill::updateOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'driver_id' => $request->driver_id,
+                    'waybill_number' => 'WB-' . strtoupper(Str::random(10)),
+                    // ✅ NO pdf_path needed - auto-generate!
+                ]
+            );
 
-                // 1. Simpan ke tabel Waybills
-                Waybill::updateOrCreate(
-                    ['order_id' => $order->id],
-                    [
-                        'driver_id' => $request->driver_id,
-                        'waybill_number' => 'WB-' . strtoupper(Str::random(10)),
-                        'pdf_path' => $fileName, 
-                    ]
-                );
+            // 2. Simpan ke tabel DeliveryOrders (Jatah Order Driver)
+            DeliveryOrder::updateOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'driver_id' => $request->driver_id,
+                    'status' => 'assigned', // Status awal driver
+                    // ✅ NO waybill_pdf needed - auto-generate!
+                    'assigned_at' => now(),
+                ]
+            );
 
-                // 2. Simpan ke tabel DeliveryOrders (Jatah Order Driver)
-                DeliveryOrder::updateOrCreate(
-                    ['order_id' => $order->id],
-                    [
-                        'driver_id' => $request->driver_id,
-                        'status' => 'assigned',
-                        'waybill_pdf' => $fileName,
-                        'assigned_at' => now(),
-                    ]
-                );
+            // 3. Update Status Order Utama
+            $order->update(['status' => 'confirmed']); 
 
-                // 3. Update Status Order Utama
-                $order->update(['status' => 'on_delivery']);
+            // 4. Update Status Ketersediaan Driver
+            User::where('id', $request->driver_id)->update(['availability_status' => 'busy']);
+            
+            \DB::commit(); // Simpan perubahan permanen
 
-                // 4. Update Status Ketersediaan Driver
-                User::where('id', $request->driver_id)->update(['availability_status' => 'busy']);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Driver assigned successfully',
-                    'data' => $order->load(['deliveryOrder.driver', 'waybill'])
-                ]);
-            }
+            return response()->json([
+                'success' => true,
+                'message' => 'Driver assigned successfully. Waybill will be auto-generated.',
+                'data' => $order->load(['deliveryOrder.driver', 'waybill'])
+            ]);
+            
         } catch (\Exception $e) {
+            \DB::rollBack(); // Batalkan semua jika error
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to assign driver: ' . $e->getMessage()
             ], 500);
         }
     }
-
     /**
      * Membuat atau memperbarui data Surat Jalan (Waybill)
      */

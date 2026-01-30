@@ -27,7 +27,17 @@ class DriverOrderController extends Controller
         
         $ordersData = $deliveryOrders->getCollection()->map(function($deliveryOrder) {
             $order = $deliveryOrder->order;
-            
+            if (!$order) return null;
+
+            // --- ✅ 1. PASTIKAN BAGIAN INI ADA ---
+            // Generate Signed URL valid selama 60 menit
+            $waybillUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+                'api.waybill.generate', 
+                now()->addMinutes(60),
+                ['id' => $order->id]
+            );
+            // ------------------------------------
+
             return [
                 'id' => $order->id,
                 'order_code' => $order->order_code,
@@ -41,6 +51,9 @@ class DriverOrderController extends Controller
                 'estimated_minutes' => $order->estimated_minutes,
                 'created_at' => $order->created_at,
                 'updated_at' => $order->updated_at,
+
+                'waybill_url' => $waybillUrl, 
+                'has_waybill' => in_array($order->status, ['picked_up', 'on_delivery', 'completed', 'delivered']),
                 
                 'user' => $order->user ? [
                     'id' => $order->user->id,
@@ -76,17 +89,18 @@ class DriverOrderController extends Controller
                     'id' => $deliveryOrder->id,
                     'driver_id' => $deliveryOrder->driver_id,
                     'status' => $deliveryOrder->status,
+                    'waybill_pdf' => $deliveryOrder->waybill_pdf, // ✅ Added for fallback
                     'assigned_at' => $deliveryOrder->assigned_at,
                     'created_at' => $deliveryOrder->created_at,
                 ],
             ];
-        });
+        })->filter();
         
         return response()->json([
             'success' => true,
             'data' => [
                 'current_page' => $deliveryOrders->currentPage(),
-                'data' => $ordersData,
+                'data' => $ordersData->values(),
                 'last_page' => $deliveryOrders->lastPage(),
                 'total' => $deliveryOrders->total(),
                 'per_page' => $deliveryOrders->perPage(),
@@ -153,10 +167,10 @@ public function updateStatus(Request $request, $id)
     }
 }
 
-    public function track(Request $request, $orderId)
+    public function track(Request $request, $id)
     {
         // Cari delivery order berdasarkan order_id
-        $deliveryOrder = DeliveryOrder::where('order_id', $orderId)->firstOrFail();
+        $deliveryOrder = DeliveryOrder::where('order_id', $id)->firstOrFail();
 
         if ($deliveryOrder->driver_id !== auth()->id()) {
             return response()->json(['message' => 'Unauthorized'], 403);

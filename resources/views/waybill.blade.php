@@ -27,9 +27,7 @@
     <table class="header-table">
         <tr>
             <td>
-                @if($logo)
-                    <img src="{{ $logo }}" class="logo">
-                @endif
+                <img src="{{ public_path('images/logo.png') }}" alt="Logo" class="logo">
             </td>
             <td class="company-info">
                 <p class="company-name">PT Fujiyama Biomass Energy</p>
@@ -64,7 +62,7 @@
             <td>{{ $waybill->created_at->format('d M Y') }}</td>
             <td>Mitra</td>
             <td>:</td>
-            <td>{{ $mitra->name ?? '-' }}</td>
+            <td>{{ $user->name ?? '-' }}</td>
         </tr>
     </table>
 
@@ -106,7 +104,7 @@
             <td class="signature-box">
                 <p>Diterima Oleh,</p>
                 <div class="space"></div>
-                <p><strong>( {{ $mitra->name ?? '....................' }} )</strong></p>
+                <p><strong>( {{ $user->name ?? '....................' }} )</strong></p>
             </td>
         </tr>
     </table>

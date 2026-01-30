@@ -42,59 +42,81 @@ class OrderController extends Controller
         return response()->json($orders);
     }
 
-/**
-     * Simpan order baru
+    /**
+     * Create a new order and decrement product stock.
      */
     public function store(Request $request)
     {
-        if (is_string($request->items)) {
-            $request->merge([
-                'items' => json_decode($request->items, true)
-            ]);
-        }
-
-        // Validasi sekarang akan berjalan lancar karena 'items' sudah pasti berbentuk Array
-        $request->validate([
+        // 1. Validasi Input
+        $validator = Validator::make($request->all(), [
             'destination_address' => 'required|string',
-            'destination_lat' => 'required|numeric', 
+            'destination_lat' => 'required|numeric',
             'destination_lng' => 'required|numeric',
+            'payment_method' => 'required|in:cash,transfer',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
+            'total_amount' => 'required|numeric|min:0',
+            'shipping_cost' => 'required|numeric|min:0',
         ]);
-
-        return DB::transaction(function () use ($request) {
-            // ... (kode sisa kakak ke bawah tetap sama)
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+        // 2. Mulai Transaksi Database
+        DB::beginTransaction();
+        try {
+            // Validasi Minimum Order (10 Ton) - Opsional jika masih diperlukan
+            $totalQuantity = collect($request->items)->sum('quantity');
+            if ($totalQuantity < 10000) { // Asumsi satuan Kg
+                 // throw new \Exception('Minimum order adalah 10 Ton (10.000 Kg).');
+            }
+            // 3. Buat Order
             $order = Order::create([
-                'user_id' => $request->user()->id,
-                'order_code' => 'ORD-' . strtoupper(uniqid()),
+                'user_id' => auth()->id(),
+                'status' => 'pending', // Atau 'processed' tergantung flow
                 'destination_address' => $request->destination_address,
                 'destination_lat' => $request->destination_lat,
                 'destination_lng' => $request->destination_lng,
-                'total_amount' => 0,
+                'payment_method' => $request->payment_method,
+                'shipping_cost' => $request->shipping_cost,
+                'total_amount' => $request->total_amount,
+                'invoice_number' => 'INV/' . date('Ymd') . '/' . mt_rand(1000, 9999),
             ]);
-
-            $totalAmount = 0;
-
+            // 4. Proses Setiap Item & Kurangi Stok
             foreach ($request->items as $item) {
-                $product = Product::findOrFail($item['product_id']);
-                $subtotal = $product->price * $item['quantity'];
-
+                // Lock product row for update (mencegah race condition)
+                $product = Product::lockForUpdate()->find($item['product_id']);
+                if (!$product) {
+                    throw new \Exception("Produk dengan ID {$item['product_id']} tidak ditemukan.");
+                }
+                // Cek Stok Cukup
+                if ($product->stock < $item['quantity']) {
+                    throw new \Exception("Stok tidak cukup untuk produk: {$product->name}. Sisa stok: {$product->stock}");
+                }
+                // Kurangi Stok
+                $product->decrement('stock', $item['quantity']);
+                // Buat Order Item
                 OrderItem::create([
                     'order_id' => $order->id,
                     'product_id' => $product->id,
                     'quantity' => $item['quantity'],
                     'price' => $product->price,
-                    'subtotal' => $subtotal,
+                    'subtotal' => $product->price * $item['quantity'],
                 ]);
-
-                $totalAmount += $subtotal;
             }
-
-            $order->update(['total_amount' => $totalAmount]);
-
-            return response()->json($order->load('orderItems.product'), 201);
-        });
+            // 5. Commit Transaksi (Simpan Perubahan)
+            DB::commit();
+            return response()->json([
+                'message' => 'Order berhasil dibuat dan stok berkurang.',
+                'order' => $order->load('items.product'),
+            ], 201);
+        } catch (\Exception $e) {
+            // Rollback jika ada error (stok kembali semula)
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Gagal membuat order: ' . $e->getMessage(),
+            ], 400);
+        }
     }
 
     /**
@@ -175,8 +197,20 @@ class OrderController extends Controller
      */
   public function tracking(Order $order)
 {
-    // Authorization check - only order owner or admin can track
-    if ($order->user_id !== auth()->id() && auth()->user()->role !== 'admin') {
+    $user = auth()->user();
+    
+    // Authorization: Allow order owner, admin, or assigned driver
+    $isOrderOwner = $order->user_id === $user->id;
+    $isAdmin = $user->role === 'admin';
+    
+    // Check if user is the assigned driver
+    $isAssignedDriver = false;
+    if ($user->role === 'driver') {
+        $deliveryOrder = $order->deliveryOrder;
+        $isAssignedDriver = $deliveryOrder && $deliveryOrder->driver_id === $user->id;
+    }
+    
+    if (!$isOrderOwner && !$isAdmin && !$isAssignedDriver) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }
 
@@ -239,7 +273,18 @@ class OrderController extends Controller
     {
         $user = auth()->user();
 
-        if ($order->user_id !== $user->id && $user->role !== 'admin') {
+        // Authorization: Allow order owner, admin, or assigned driver
+        $isOrderOwner = $order->user_id === $user->id;
+        $isAdmin = $user->role === 'admin';
+        
+        // Check if user is the assigned driver
+        $isAssignedDriver = false;
+        if ($user->role === 'driver') {
+            $deliveryOrder = $order->deliveryOrder;
+            $isAssignedDriver = $deliveryOrder && $deliveryOrder->driver_id === $user->id;
+        }
+
+        if (!$isOrderOwner && !$isAdmin && !$isAssignedDriver) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

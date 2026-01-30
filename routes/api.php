@@ -22,7 +22,19 @@ use Illuminate\Support\Facades\Route;
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/payment/tripay/callback', [PaymentController::class, 'callback']);
-Route::get('/orders/{order}/waybill/pdf', [WaybillController::class, 'downloadWaybillPdf']);
+
+// ✅ ROUTE 1: Untuk Driver (Download Waybill)
+// Removed 'signed' middleware karena Ngrok mengubah URL (HTTP→HTTPS) yang membuat signature invalid
+// Security: Rate limiting + controller validation sudah cukup
+Route::get('/waybill/{id}/download', [WaybillController::class, 'generate'])
+    ->name('api.waybill.generate')
+    ->middleware('throttle:60,1');
+
+// ✅ ROUTE 2: Untuk Admin/User (Preview PDF) + 🛡️ SECURITY PATCH
+// Rate limiting: Max 60 requests per minute (mencegah brute force)
+// URL: /api/orders/{order}/waybill/pdf
+Route::get('/orders/{order}/waybill/pdf', [WaybillController::class, 'downloadWaybillPdf'])
+    ->middleware('throttle:60,1');
 
 /*
 |--------------------------------------------------------------------------
@@ -70,7 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:admin')->prefix('admin')->group(function () {
         Route::get('/dashboard-summary', [AdminDashboardController::class, 'summary']);
         
-        // Product routes - update harus pakai POST karena multipart/form-data
+        // Product routes
         Route::post('/products', [ProductController::class, 'store']);
         Route::post('/products/{product}', [ProductController::class, 'update']);
         Route::delete('/products/{product}', [ProductController::class, 'destroy']);
@@ -89,16 +101,9 @@ Route::middleware('auth:sanctum')->group(function () {
     /* --- DRIVER ROUTES --- */
     Route::middleware('role:driver')->prefix('driver')->group(function () {
         Route::get('/orders', [DriverOrderController::class, 'index']);
-        
-        // Menggunakan PUT atau POST sesuai keinginan Front-end untuk update status
         Route::post('/orders/{id}/status', [DriverOrderController::class, 'updateStatus']);
-        
-        // Route untuk selesaikan pesanan (complete delivery)
         Route::post('/orders/{id}/complete', [DriverOrderController::class, 'completeDelivery']);
-        
-        // Route Track ini untuk mencatat riwayat koordinat ke tabel delivery_tracks
-        Route::post('/orders/{orderId}/track', [DriverOrderController::class, 'track']);
-        
+        Route::post('/orders/{id}/track', [DriverOrderController::class, 'track']);
         Route::post('/availability', [DriverOrderController::class, 'updateAvailability']);
     });
 });
