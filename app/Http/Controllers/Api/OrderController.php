@@ -195,61 +195,97 @@ class OrderController extends Controller
  /**
      * Tracking lokasi driver
      */
-  public function tracking(Order $order)
-{
-    $user = auth()->user();
-    
-    // Authorization: Allow order owner, admin, or assigned driver
-    $isOrderOwner = $order->user_id === $user->id;
-    $isAdmin = $user->role === 'admin';
-    
-    // Check if user is the assigned driver
-    $isAssignedDriver = false;
-    if ($user->role === 'driver') {
-        $deliveryOrder = $order->deliveryOrder;
-        $isAssignedDriver = $deliveryOrder && $deliveryOrder->driver_id === $user->id;
-    }
-    
-    if (!$isOrderOwner && !$isAdmin && !$isAssignedDriver) {
-        return response()->json(['message' => 'Unauthorized'], 403);
-    }
+    public function tracking($id)
+    {
+        $user = auth()->user();
 
-    // Ambil data delivery, tapi jangan error kalau kosong
-    $deliveryOrder = $order->deliveryOrder()->with('driver')->first();
-
-    $response = [
-        'order_status' => $this->mapOrderStatus($order->status),
-        'driver_location' => null,
-        'destination_location' => [
-            'latitude' => (float) ($order->destination_lat ?? 0),
-            'longitude' => (float) ($order->destination_lng ?? 0),
-        ],
-        'distance_km' => (float) ($order->distance_km ?? 0),
-        'estimated_minutes' => $order->estimated_minutes ?? 0,
-        'driver' => null,
-    ];
-
-    // Cek apakah deliveryOrder dan driver benar-benar ADA sebelum diakses
-    if ($deliveryOrder && $deliveryOrder->driver) {
-        $lastLocation = $deliveryOrder->deliveryTracks()
-            ->orderBy('recorded_at', 'desc')
-            ->first();
-
-        if ($lastLocation) {
-            $response['driver_location'] = [
-                'latitude' => (float) $lastLocation->lat,
-                'longitude' => (float) $lastLocation->lng,
-            ];
+        // Load order with relations (User Request: Explicit fresh load)
+        $order = Order::with(['deliveryOrder.driver'])->findOrFail($id);
+        
+        // Authorization: Allow order owner, admin, or assigned driver
+        $isOrderOwner = $order->user_id === $user->id;
+        $isAdmin = $user->role === 'admin';
+        
+        // Check if user is the assigned driver
+        $isAssignedDriver = false;
+        if ($user->role === 'driver') {
+            $deliveryOrder = $order->deliveryOrder;
+            $isAssignedDriver = $deliveryOrder && $deliveryOrder->driver_id === $user->id;
+        }
+        
+        if (!$isOrderOwner && !$isAdmin && !$isAssignedDriver) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $response['driver'] = [
-            'name' => $deliveryOrder->driver->name,
-            'phone' => (string) ($deliveryOrder->driver->phone ?? '-'),
-        ];
+        // 1. Fetch latest location from 'delivery_tracks' table (User Request Fix)
+        $latestTrack = null;
+        if ($order->deliveryOrder) {
+            $latestTrack = \App\Models\DeliveryTrack::where('delivery_order_id', $order->deliveryOrder->id)
+                ->latest('recorded_at')
+                ->first();
+        }
+
+        $driverLat = $latestTrack ? (float) $latestTrack->lat : null;
+        $driverLng = $latestTrack ? (float) $latestTrack->lng : null;
+        $destLat = (float) $order->destination_lat;
+        $destLng = (float) $order->destination_lng;
+
+        // 2. Calculate Dynamic Distance & ETA
+        $distanceKm = 0;
+        $estimatedMinutes = 0;
+
+        if ($driverLat && $driverLng) {
+            // Calculate Straight Distance (Haversine)
+            $distanceKm = $this->calculateDistance($driverLat, $driverLng, $destLat, $destLng);
+
+            // Add 40% buffer for road curves
+            $distanceKm = $distanceKm * 1.4;
+            
+            // Estimate time (Avg speed 40 km/h)
+            $speedKmH = 40; 
+            $estimatedMinutes = ($distanceKm / $speedKmH) * 60;
+        } else {
+            // Fallback to static data
+            $distanceKm = (float) ($order->distance_km ?? 0);
+            $estimatedMinutes = (int) ($order->estimated_minutes ?? 0);
+        }
+
+        return response()->json([
+            'order_status' => $this->mapOrderStatus($order->status),
+            
+            'driver_location' => $latestTrack ? [
+                'latitude' => $driverLat,
+                'longitude' => $driverLng
+            ] : null,
+            
+            'destination_location' => [
+                'latitude' => $destLat,
+                'longitude' => $destLng
+            ],
+            
+            // FIX: Real-time values
+            'distance_km' => round($distanceKm, 1),
+            'estimated_minutes' => round($estimatedMinutes),
+            
+            'driver' => ($order->deliveryOrder && $order->deliveryOrder->driver) ? [
+                'name' => $order->deliveryOrder->driver->name,
+                'phone' => (string) ($order->deliveryOrder->driver->phone ?? '-'),
+            ] : null,
+        ]);
     }
 
-    return response()->json($response);
-}
+    // ⬇️ ADD THIS HELPER FUNCTION INSIDE THE CLASS ⬇️
+    private function calculateDistance($lat1, $lon1, $lat2, $lon2)
+    {
+        $earthRadius = 6371; // Radius of earth in KM
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+        $a = sin($dLat / 2) * sin($dLat / 2) +
+            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+            sin($dLon / 2) * sin($dLon / 2);
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        return $earthRadius * $c;
+    }
 
     /**
      * Helper status mapping (Gunakan Versi Indonesia agar bagus di UI Flutter)

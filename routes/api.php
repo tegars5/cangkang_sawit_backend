@@ -95,6 +95,8 @@ Route::middleware('auth:sanctum')->group(function () {
         
         Route::get('/drivers', [AdminDriverController::class, 'index']);
         Route::post('/drivers', [AdminDriverController::class, 'store']);
+        Route::put('/drivers/{driver}', [AdminDriverController::class, 'update']);
+        Route::delete('/drivers/{driver}', [AdminDriverController::class, 'destroy']);
         Route::get('/drivers/available', [AdminDriverController::class, 'available']);
     });
 

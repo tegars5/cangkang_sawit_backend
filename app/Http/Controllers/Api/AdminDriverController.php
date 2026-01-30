@@ -87,4 +87,67 @@ class AdminDriverController extends Controller
             'driver' => $driver,
         ], 201);
     }
+
+    /**
+     * Update driver details
+     */
+    public function update(Request $request, $id)
+    {
+        if (auth()->user()->role !== 'admin') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $driver = User::where('role', 'driver')->findOrFail($id);
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email,' . $id,
+            'phone' => 'nullable|string|max:20',
+            'vehicle_type' => 'nullable|string|max:50',
+            'vehicle_number' => 'nullable|string|max:20',
+            'password' => 'nullable|string|min:8|confirmed',
+        ]);
+
+        $data = [
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'vehicle_type' => $request->vehicle_type,
+            'vehicle_number' => $request->vehicle_number,
+        ];
+
+        if ($request->filled('password')) {
+            $data['password'] = \Hash::make($request->password);
+        }
+
+        $driver->update($data);
+
+        return response()->json([
+            'message' => 'Driver updated successfully',
+            'driver' => $driver
+        ]);
+    }
+
+    /**
+     * Delete driver
+     */
+    public function destroy($id)
+    {
+        if (auth()->user()->role !== 'admin') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $driver = User::where('role', 'driver')->findOrFail($id);
+        
+        // Optional: Check if driver has active orders before deleting
+        /*
+        if ($driver->deliveryOrders()->whereIn('status', ['assigned', 'picked_up'])->exists()) {
+             return response()->json(['message' => 'Cannot delete driver with active orders'], 400);
+        }
+        */
+
+        $driver->delete();
+
+        return response()->json(['message' => 'Driver deleted successfully']);
+    }
 }

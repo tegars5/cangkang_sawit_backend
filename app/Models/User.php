@@ -21,6 +21,8 @@ class User extends Authenticatable
         'profile_photo',
         'fcm_token',
         'availability_status',
+        'vehicle_type',
+        'vehicle_number',
     ];
 
     protected $hidden = [
