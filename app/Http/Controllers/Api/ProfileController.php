@@ -83,7 +83,7 @@ class ProfileController extends Controller
     public function uploadPhoto(Request $request)
     {
         $request->validate([
-            'photo' => 'required|image|mimes:jpeg,png,jpg|max:5120', // Max 5MB
+            'photo' => 'required|image|mimes:jpeg,png,jpg|max:2048', // Max 2MB
         ]);
         
         $user = auth()->user();
@@ -95,7 +95,7 @@ class ProfileController extends Controller
         
         // Optimize and save image
         $image = $request->file('photo');
-        $filename = 'profile_' . $user->id . '_' . time() . '.jpg';
+        $filename = 'user_' . $user->id . '_' . time() . '.jpg';
         
         // Create image manager with GD driver
         $manager = new ImageManager(new Driver());
@@ -107,16 +107,20 @@ class ProfileController extends Controller
         // Encode to JPEG with 80% quality
         $encoded = $img->toJpeg(80);
         
-        // Save to storage
-        $path = 'profiles/' . $filename;
+        // Save to storage (profile_photos directory as requested by frontend)
+        $path = 'profile_photos/' . $filename;
         Storage::disk('public')->put($path, (string) $encoded);
         
         // Update user
         $user->update(['profile_photo' => $path]);
         
         return response()->json([
-            'message' => 'Profile photo uploaded successfully',
-            'photo_url' => Storage::disk('public')->url($path)
+            'success' => true,
+            'message' => 'Profile photo updated successfully',
+            'data' => [
+                'profile_picture' => $path,
+                'profile_picture_url' => Storage::disk('public')->url($path)
+            ]
         ]);
     }
 }

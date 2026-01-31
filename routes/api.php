@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\AdminOrderController;
 use App\Http\Controllers\Api\AdminDashboardController;
+use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\DriverOrderController;
 use App\Http\Controllers\Api\WaybillController;
 use App\Http\Controllers\Api\DistanceController;
@@ -98,6 +99,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/drivers/{driver}', [AdminDriverController::class, 'update']);
         Route::delete('/drivers/{driver}', [AdminDriverController::class, 'destroy']);
         Route::get('/drivers/available', [AdminDriverController::class, 'available']);
+        
+        // Reports
+        Route::get('/reports', [AdminReportController::class, 'index']);
     });
 
     /* --- DRIVER ROUTES --- */
