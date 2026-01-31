@@ -155,6 +155,25 @@ public function callback(Request $request)
         });
 
         \Log::info("DATABASE BERHASIL UPDATE: " . $data->merchant_ref);
+
+        // === NOTIFIKASI KE ADMIN (FCM) ===
+        // Trigger saat pembayaran berhasil (Order masuk status Pending)
+        try {
+            if ($payment->order) {
+                $mitraName = $payment->order->user->name ?? 'Mitra';
+                $invoice = $payment->order->invoice_number ?? $payment->order->order_code ?? '-';
+                
+                \App\Services\FCMService::sendToAdmins(
+                    "Pesanan Baru Masuk (Lunas)!",
+                    "Mitra $mitraName baru saja menyelesaikan pembayaran untuk pesanan #$invoice.",
+                    ['order_id' => $payment->order->id, 'type' => 'new_order']
+                );
+            }
+        } catch (\Exception $e) {
+            \Log::error("Failed to send FCM notification in callback: " . $e->getMessage());
+        }
+        // =================================
+
         return response()->json(['success' => true]);
     }
 

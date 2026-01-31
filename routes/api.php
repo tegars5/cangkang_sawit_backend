@@ -56,7 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/photo', [ProfileController::class, 'uploadPhoto']);
     });
     Route::post('/fcm-token', [UserController::class, 'updateFcmToken']);
-
+    
     /* --- PRODUCT ROUTES --- */
     Route::get('/products/categories', [ProductController::class, 'getCategories']);
     Route::get('/products/search', [ProductController::class, 'search']);

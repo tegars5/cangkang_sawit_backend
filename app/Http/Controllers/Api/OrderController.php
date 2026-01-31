@@ -106,6 +106,20 @@ class OrderController extends Controller
             }
             // 5. Commit Transaksi (Simpan Perubahan)
             DB::commit();
+
+            // === 6. NOTIFIKASI KE ADMIN (FCM) ===
+            try {
+                $mitraName = $request->user()->name;
+                \App\Services\FCMService::sendToAdmins(
+                    "Pesanan Baru Masuk!",
+                    "Mitra $mitraName baru saja membuat pesanan #{$order->invoice_number}.",
+                    ['order_id' => $order->id, 'type' => 'new_order']
+                );
+            } catch (\Exception $e) {
+                \Log::error("Failed to send FCM notification: " . $e->getMessage());
+            }
+            // ====================================
+
             return response()->json([
                 'message' => 'Order berhasil dibuat dan stok berkurang.',
                 'order' => $order->load('items.product'),

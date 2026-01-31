@@ -151,6 +151,18 @@ class AdminOrderController extends Controller
             
             \DB::commit(); // Simpan perubahan permanen
 
+            // 🔔 NOTIFIKASI KE DRIVER
+            try {
+                \App\Services\FCMService::sendToUser(
+                    $request->driver_id,
+                    "Tugas Pengiriman Baru!",
+                    "Hai, Anda mendapatkan tugas baru untuk pesanan #{$order->order_code}. Segera cek aplikasi!",
+                    ['order_id' => $order->id, 'type' => 'job_assigned']
+                );
+            } catch (\Exception $e) {
+                \Log::error("Failed to notify driver: " . $e->getMessage());
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Driver assigned successfully. Waybill will be auto-generated.',
